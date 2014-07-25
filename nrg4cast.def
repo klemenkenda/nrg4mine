@@ -1,0 +1,59 @@
+{
+    "stores": [
+        {
+            "name": "Node",
+            "id": 0,
+            "fields": [
+                { "name": "Name", "primary": true, "type": "string", "featureType": "none",
+                      "aggregationType": "none", "displayType": "text", "store": "memory", "codebook": false,
+                      "shortstring": true  },
+                { "name": "Position", "primary": false, "type": "float_pair", "featureType": "none",
+                      "aggregationType": "none", "displayType": "map", "store": "memory", "codebook": false,
+                      "shortstring": true  }
+            ],
+            "joins": [
+				{ "name": "hasSensor", "type": "index", "store": "Sensor", "inverse": "Node" }
+			],
+            "keys": [
+                { "field": "Name", "type": "value" }
+            ]            
+        },
+        {   
+            "name": "Type",
+            "id": 1,
+            "fields": [
+			    { "name": "Name", "primary": true, "type": "string", "featureType": "none",
+                      "aggregationType": "none", "displayType": "text", "store": "memory", "codebook": false,
+                    "shortstring": true  },
+                { "name": "Phenomena", "primary": false, "type": "string", "featureType": "none",
+                      "aggregationType": "none", "displayType": "text", "store": "memory", "codebook": false,
+                      "shortstring": true },
+                { "name": "UoM", "primary": false, "type": "string", "featureType": "none",
+                      "aggregationType": "none", "displayType": "text", "store": "memory", "codebook": false,
+                      "shortstring": true }
+            ],
+            "joins": [
+                { "name": "hasSensor", "type": "index", "store": "Sensor", "inverse": "Type" }				
+            ],
+            "keys": [
+                { "field": "Name", "type": "value" }
+            ]
+        },
+        {   
+            "name": "Sensor",
+            "id": 2,
+            "fields": [
+                { "name": "Name", "primary": true, "type": "string", "featureType": "none",
+                      "aggregationType": "none", "displayType": "text", "store": "memory", "codebook": false,
+                      "shortstring": true }
+            ],
+            "joins": [
+                { "name": "Node", "type": "field", "store": "Node",	"inverse": "hasSensor" },
+				{ "name": "Type", "type": "field", "store": "Type", "inverse": "hasSensor" }				
+            ],
+            "keys": [
+                { "field": "Name", "type": "value" }
+            ]
+        }
+    ]
+}
