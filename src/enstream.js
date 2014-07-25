@@ -15,7 +15,7 @@
 console.say("NRG4Cast Miner", "Starting ...");
 
 // includes
-var assert = require("assert.js");
+// var assert = require("assert.js");
 var tm = require("time");
 
 // get functions -------------------------------------------------------------
@@ -231,13 +231,67 @@ function addMeasurement(data) {
                     ]
                 }]);
 
+                qm.createStore([{
+                    "name": aggregateStoreStr,
+                    "fields": [
+                        { "name": "Time", "type": "datetime" },
+                        { "name": "Date", "type": "string" },
+                        { "name": "Val", "type": "float" }
+                    ],
+                    "joins": [],
+                    "keys": [
+                        { "field": "Date", "type": "value", "sort": "string", "vocabulary": "date_vocabulary" }
+                    ]
+                }]);
+
                 measurementStore = qm.store(measurementStoreStr);
+                // aggregateStore = qm.store(aggregateStoreStr);
+
+                // creating tick
+                measurementStore.addStreamAggr({
+                    name: "tick", type: "timeSeriesTick",
+                    timestamp: "Time", value: "Val"
+                })
+                                
+                // adding aggregates to the measurement store - EMA
+                measurementStore.addStreamAggr({
+                    name: "ema15m", type: "ema", inAggr: "tick",
+                    emaType: "previous", interval: 15 * 60 * 1000, initWindow: 15 * 60 * 1000
+                })
+                measurementStore.addStreamAggr({
+                    name: "ema1h", type: "ema", inAggr: "tick",
+                    emaType: "previous", interval: 60 * 60 * 1000, initWindow: 15 * 60 * 1000
+                })
+                measurementStore.addStreamAggr({
+                    name: "ema6h", type: "ema", inAggr: "tick",
+                    emaType: "previous", interval: 6 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
+                })
+                measurementStore.addStreamAggr({
+                    name: "ema1d", type: "ema", inAggr: "tick",
+                    emaType: "previous", interval: 24 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
+                })
+                measurementStore.addStreamAggr({
+                    name: "ema1w", type: "ema", inAggr: "tick",
+                    emaType: "previous", interval: 7 * 24 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
+                })
+                measurementStore.addStreamAggr({
+                    name: "ema1m", type: "ema", inAggr: "tick",
+                    emaType: "previous", interval: 30 * 24 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
+                })
+                measurementStore.addStreamAggr({
+                    name: "ema1y", type: "ema", inAggr: "tick",
+                    emaType: "previous", interval: 365 * 24 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
+                })
+                
+                // adding aggregates to the maeasurement store - variance
+                measurementStore.addStreamAggr({
+                    name: "variance15m", type: "variance", inAggr: "tick",
+                    interval: 15 * 60 * 1000, initWindow: 15 * 60 * 1000
+                })
+
                 // TODO: create accompanying stores (resample and aggregates) - to be confirmed
-                // R-sensorname --> resampled
                 // A-sensorname --> aggregates
             }
-
-           
 
             // parse measurement
             var measurement = new Object();
@@ -249,8 +303,12 @@ function addMeasurement(data) {
             
 
             var measurementJSON = '{ "Val": ' + measurement.Val + ', "Time": "' + measurement.Timestamp + '", "Date": "' + measurement.Date + '"}';
-            console.log(measurementJSON);
-                                               
+            console.log("Added", measurementStoreStr);
+
+            var ema15m = measurementStore.getStreamAggr("ema15m").EMA;
+            var ema1h = measurementStore.getStreamAggr("ema1h").EMA;
+            console.say("EMA15: " + ema15m + ", EMA1h: " + ema1h)            
+
             try {
                 var measurementObj = JSON.parse(measurementJSON);
                 // write measurement to the store
@@ -262,6 +320,41 @@ function addMeasurement(data) {
     }
     return str;
 }
+
+// ---------------------------------------------------------------------------
+// FUNCTION: onGet - get-current-aggregates
+// DESCRIPTION: Get current aggregates for sensor
+// ---------------------------------------------------------------------------
+http.onGet("get-current-aggregates", function (req, response) {    
+    var measurementStoreStr = "M" + nameFriendly(req.args.sid[0]);
+
+    var measurementStore = qm.store(measurementStoreStr);
+    var strArr;
+
+    var data = {};
+
+    
+    data["ema15m"] = measurementStore.getStreamAggr("ema15m").EMA;
+    data["ema1h"] = measurementStore.getStreamAggr("ema1h").EMA;
+    data["ema6h"] = measurementStore.getStreamAggr("ema6h").EMA;
+    data["ema1d"] = measurementStore.getStreamAggr("ema1d").EMA;
+    data["ema1w"] = measurementStore.getStreamAggr("ema1w").EMA;
+    data["ema1m"] = measurementStore.getStreamAggr("ema1m").EMA;
+    data["ema1y"] = measurementStore.getStreamAggr("ema1y").EMA;
+    
+
+    /*
+    var data = {
+        "ema15m": measurementStore.getStreamAggr("ema15m").EMA,
+        "ema1h": measurementStore.getStreamAggr("ema1h").EMA
+    };
+    */
+
+    // data = strArr;
+
+    http.jsonp(req, response, data);
+});
+
 
 // generic functions ---------------------------------------------------------
 
