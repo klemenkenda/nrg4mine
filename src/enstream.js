@@ -283,10 +283,19 @@ function addMeasurement(data) {
                     emaType: "previous", interval: 365 * 24 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
                 })
                 
+                // adding timeserieswinbuff aggregate (wrapper for variance)
+                measurementStore.addStreamAggr({
+                    name: "winbuff1h", type: "timeSeriesWinBuf",
+                    timestamp: "Time", value: "Val", winsize: 60
+                })
+
                 // adding aggregates to the maeasurement store - variance
                 measurementStore.addStreamAggr({
-                    name: "variance15m", type: "variance", inAggr: "tick",
-                    interval: 15 * 60 * 1000, initWindow: 15 * 60 * 1000
+                    name: "variance1h", type: "variance", inAggr: "winbuff1h"                    
+                })
+
+                measurementStore.addStreamAggr({
+                    name: "ma1h", type: "ma", inAggr: "winbuff1h"
                 })
 
                 // TODO: create accompanying stores (resample and aggregates) - to be confirmed
@@ -299,22 +308,36 @@ function addMeasurement(data) {
             measurement.Timestamp = measurements[j].timestamp;
             measurement.Date = measurement.Timestamp.substr(0, 10);
 
-            str += measurement.Timestamp + "#Type=" + typeid + "\n";;
-            
+            // check if the measurement is old
+            if ((measurementStore.length < 1) || (measurement.Timestamp > measurementStore[measurementStore.length - 1].Time.string)) {
 
-            var measurementJSON = '{ "Val": ' + measurement.Val + ', "Time": "' + measurement.Timestamp + '", "Date": "' + measurement.Date + '"}';
-            console.log("Added", measurementStoreStr);
+                str += measurement.Timestamp + "#Type=" + typeid + "\n";;
 
-            var ema15m = measurementStore.getStreamAggr("ema15m").EMA;
-            var ema1h = measurementStore.getStreamAggr("ema1h").EMA;
-            console.say("EMA15: " + ema15m + ", EMA1h: " + ema1h)            
 
-            try {
-                var measurementObj = JSON.parse(measurementJSON);
-                // write measurement to the store
-                var measurementid = measurementStore.add(measurementObj);
-            } catch (e) {
-                console.say("Parsing error: " + e);
+                var measurementJSON = '{ "Val": ' + measurement.Val + ', "Time": "' + measurement.Timestamp + '", "Date": "' + measurement.Date + '"}';
+                console.log("Added", measurementStoreStr);
+
+                var ema15m = measurementStore.getStreamAggr("ema15m").EMA;
+                var ema1h = measurementStore.getStreamAggr("ema1h").EMA;
+                var var1h = measurementStore.getStreamAggr("variance1h").VAR;
+                var varObj = measurementStore.getStreamAggr("variance1h");
+                var lastval1h = measurementStore.getStreamAggr("winbuff1h").LastVal;
+                var ma1h = measurementStore.getStreamAggr("ma1h").MA;
+
+                console.say("EMA15: " + ema15m + ", EMA1h: " + ema1h + ", VAR1h: " + var1h + ", last: " + lastval1h + "MA: " + ma1h);
+                console.say("Variance object: " + objToString(varObj));
+
+                try {
+                    var measurementObj = JSON.parse(measurementJSON);
+                    // write measurement to the store
+                    var measurementid = measurementStore.add(measurementObj);
+                } catch (e) {
+                    console.say("Parsing error: " + e);
+                }
+            } else {
+                // trigger an alarm - wrong timestamp
+                str += "Wrong timestamp!";
+                console.say("Wrong timestamp - last = " + measurementStore[measurementStore.length - 1].Time.string + "; measurement = " + measurement.Timestamp);
             }
         }
     }
