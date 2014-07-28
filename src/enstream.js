@@ -297,6 +297,10 @@ function addMeasurement(data) {
                 measurementStore.addStreamAggr({
                     name: "ma1h", type: "ma", inAggr: "winbuff1h"
                 })
+                
+                measurementStore.addStreamAggr({
+                    name: "count1h", type: "winBufCount", inAggr: "winbuff1h"
+                })
 
                 // TODO: create accompanying stores (resample and aggregates) - to be confirmed
                 // A-sensorname --> aggregates
@@ -317,20 +321,25 @@ function addMeasurement(data) {
                 var measurementJSON = '{ "Val": ' + measurement.Val + ', "Time": "' + measurement.Timestamp + '", "Date": "' + measurement.Date + '"}';
                 console.log("Added", measurementStoreStr);
 
-                var ema15m = measurementStore.getStreamAggr("ema15m").EMA;
-                var ema1h = measurementStore.getStreamAggr("ema1h").EMA;
-                var var1h = measurementStore.getStreamAggr("variance1h").VAR;
-                var varObj = measurementStore.getStreamAggr("variance1h");
-                var lastval1h = measurementStore.getStreamAggr("winbuff1h").LastVal;
-                var ma1h = measurementStore.getStreamAggr("ma1h").MA;
-
-                console.say("EMA15: " + ema15m + ", EMA1h: " + ema1h + ", VAR1h: " + var1h + ", last: " + lastval1h + "MA: " + ma1h);
-                console.say("Variance object: " + objToString(varObj));
-
                 try {
                     var measurementObj = JSON.parse(measurementJSON);
                     // write measurement to the store
                     var measurementid = measurementStore.add(measurementObj);
+
+                    // DEBUG - display some aggregates
+                    var ema15m = measurementStore.getStreamAggr("ema15m").EMA;
+                    var ema1h = measurementStore.getStreamAggr("ema1h").EMA;
+                    var var1h = measurementStore.getStreamAggr("variance1h").VAR;
+                    var varObj = measurementStore.getStreamAggr("variance1h");
+                    var lastval1h = measurementStore.getStreamAggr("winbuff1h").LastVal;
+
+                    var ma1h = measurementStore.getStreamAggr("ma1h").MA;
+                    var count1h = measurementStore.getStreamAggr("count1h").COUNT;
+
+
+                    console.say("EMA15: " + ema15m + ", EMA1h: " + ema1h + ", VAR1h: " + var1h + ", last: " + lastval1h + "COUNT: " + count1h);
+                    // console.say("Variance object: " + objToString(varObj));
+
                 } catch (e) {
                     console.say("Parsing error: " + e);
                 }
