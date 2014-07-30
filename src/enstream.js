@@ -258,17 +258,12 @@ function addMeasurement(data) {
                   
                 // adding aggregates to the measurement store - EMA
                 measurementStore.addStreamAggr({
-                    name: "ema15m", type: "ema", inAggr: "tick",
-                    emaType: "previous", interval: 15 * 60 * 1000, initWindow: 15 * 60 * 1000
-                })
-                
-                measurementStore.addStreamAggr({
                     name: "ema1h", type: "ema", inAggr: "tick",
-                    emaType: "previous", interval: 60 * 60 * 1000, initWindow: 15 * 60 * 1000
+                    emaType: "previous", interval: 60 * 60 * 1000, initWindow: 0 * 60 * 1000
                 })
                 measurementStore.addStreamAggr({
                     name: "ema6h", type: "ema", inAggr: "tick",
-                    emaType: "previous", interval: 6 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
+                    emaType: "previous", interval: 6 * 60 * 60 * 1000, initWindow: 0 * 60 * 1000
                 })
                 measurementStore.addStreamAggr({
                     name: "ema1d", type: "ema", inAggr: "tick",
@@ -286,30 +281,31 @@ function addMeasurement(data) {
                     name: "ema1y", type: "ema", inAggr: "tick",
                     emaType: "previous", interval: 365 * 24 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
                 })
-                
-                /*
-                // adding timeserieswinbuff aggregate (wrapper for variance)
+                                
+                // adding timeserieswinbuff aggregate
                 measurementStore.addStreamAggr({
                     name: "winbuff1h", type: "timeSeriesWinBuf",
                     timestamp: "Time", value: "Val", winsize: 60
                 })
 
-                
-                // adding aggregates to the maeasurement store - variance
+                             
                 measurementStore.addStreamAggr({
-                    name: "variance1h", type: "variance", inAggr: "winbuff1h"                    
+                    name: "count1h", type: "winBufCount", inAggr: "winbuff1h"
+                })
+                
+                measurementStore.addStreamAggr({
+                    name: "sum1h", type: "winBufSum", inAggr: "winbuff1h"
+                })
+                
+                measurementStore.addStreamAggr({
+                    name: "variance1h", type: "variance", inAggr: "winbuff1h"
                 })
                 
                 measurementStore.addStreamAggr({
                     name: "ma1h", type: "ma", inAggr: "winbuff1h"
                 })
+                                            
                 
-                
-                measurementStore.addStreamAggr({
-                    name: "count1h", type: "winBufCount", inAggr: "winbuff1h"
-                })
-                */
-
                 /*
                 // TODO: create accompanying stores (resample and aggregates) - to be confirmed
                 // A-sensorname --> aggregates
@@ -339,17 +335,16 @@ function addMeasurement(data) {
                     // DEBUG - display some aggregates
                     
                     var tick = measurementStore.getStreamAggr("tick").GenericTick;
-                    var ema15m = measurementStore.getStreamAggr("ema15m").EMA;
+                    var lastval1h = measurementStore.getStreamAggr("winbuff1h").LastVal;
+
                     var ema1h = measurementStore.getStreamAggr("ema1h").EMA;
-                    // var var1h = measurementStore.getStreamAggr("variance1h").VAR;
-                    // var varObj = measurementStore.getStreamAggr("variance1h");
-                    // var lastval1h = measurementStore.getStreamAggr("winbuff1h").LastVal;
-
-                    //var ma1h = measurementStore.getStreamAggr("ma1h").MA;
-                    //var count1h = measurementStore.getStreamAggr("count1h").COUNT;
+                    var var1h = measurementStore.getStreamAggr("variance1h").VAR;
+                    var ma1h = measurementStore.getStreamAggr("ma1h").MA;
+                    var count1h = measurementStore.getStreamAggr("count1h").COUNT;
+                    var sum1h = measurementStore.getStreamAggr("sum1h").SUM;
 
 
-                    console.say("tick: " + tick + ", EMA15: " + ema15m + ", EMA1h: " + ema1h);
+                    console.say("tick: " + tick + ", EMA: " + ema1h + ", VAR: " + var1h + ", MA: " + ma1h + ", CNT: " + count1h + ", SUM: " + sum1h);
                     // + ", VAR1h: " + var1h + ", last: " + lastval1h + "COUNT: " + count1h);
                     // console.say("Variance object: " + objToString(varObj));
                     
