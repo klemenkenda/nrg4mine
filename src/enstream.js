@@ -18,6 +18,40 @@ console.say("NRG4Cast Miner", "Starting ...");
 // var assert = require("assert.js");
 var tm = require("time");
 
+// config tick aggregates
+tickTimes = [
+    { name: "1h", interval: 1 },
+    { name: "6h", interval: 6 },
+    { name: "1d", interval: 24 },
+    { name: "1w", interval: 7 * 24 },
+    { name: "1m", interval: 30 * 24 },
+    { name: "1y", interval: 365 * 24 }
+];
+
+tickAggregates = [
+    { name: "ema", type: "ema" }
+];
+
+// config winbuff aggregates
+bufTimes = [
+    { name: "1h", interval: 1 },
+    { name: "6h", interval: 6 },
+    { name: "1d", interval: 24 },
+    { name: "1w", interval: 7 * 24 },
+    { name: "1m", interval: 30 * 24 },
+    { name: "1y", interval: 365 * 24 }
+]
+
+bufAggregates = [
+    { name: "count", type: "winBufCount" },
+    { name: "sum", type: "winBufSum" },
+    { name: "min", type: "winBufMin" },
+    { name: "max", type: "winBufMax" },
+    { name: "var", type: "variance" },
+    { name: "avg", type: "ma" }
+]
+
+
 // get functions -------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -231,7 +265,7 @@ function addMeasurement(data) {
                     ]
                 }]);
                        
-                /*
+                // A-sensorname --> aggregates
                 qm.createStore([{
                     "name": aggregateStoreStr,
                     "fields": [
@@ -243,69 +277,44 @@ function addMeasurement(data) {
                     "keys": [
                         { "field": "Date", "type": "value", "sort": "string", "vocabulary": "date_vocabulary" }
                     ]
-                }]);
-                */
+                }]);                
 
-                measurementStore = qm.store(measurementStoreStr);
-                // aggregateStore = qm.store(aggregateStoreStr);
-
+                measurementStore = qm.store(measurementStoreStr);                
                 
                 // creating tick
                 measurementStore.addStreamAggr({
                     name: "tick", type: "timeSeriesTick",
                     timestamp: "Time", value: "Val"
-                })
-                  
-                // adding aggregates to the measurement store - EMA
-                measurementStore.addStreamAggr({
-                    name: "ema1h", type: "ema", inAggr: "tick",
-                    emaType: "previous", interval: 60 * 60 * 1000, initWindow: 0 * 60 * 1000
-                })
-                measurementStore.addStreamAggr({
-                    name: "ema6h", type: "ema", inAggr: "tick",
-                    emaType: "previous", interval: 6 * 60 * 60 * 1000, initWindow: 0 * 60 * 1000
-                })
-                measurementStore.addStreamAggr({
-                    name: "ema1d", type: "ema", inAggr: "tick",
-                    emaType: "previous", interval: 24 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
-                })
-                measurementStore.addStreamAggr({
-                    name: "ema1w", type: "ema", inAggr: "tick",
-                    emaType: "previous", interval: 7 * 24 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
-                })
-                measurementStore.addStreamAggr({
-                    name: "ema1m", type: "ema", inAggr: "tick",
-                    emaType: "previous", interval: 30 * 24 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
-                })
-                measurementStore.addStreamAggr({
-                    name: "ema1y", type: "ema", inAggr: "tick",
-                    emaType: "previous", interval: 365 * 24 * 60 * 60 * 1000, initWindow: 15 * 60 * 1000
-                })
-                                
-                // adding timeserieswinbuff aggregate
-                measurementStore.addStreamAggr({
-                    name: "winbuff1h", type: "timeSeriesWinBuf",
-                    timestamp: "Time", value: "Val", winsize: 60
-                })
+                })                                                  
 
-                             
-                measurementStore.addStreamAggr({
-                    name: "count1h", type: "winBufCount", inAggr: "winbuff1h"
-                })
-                
-                measurementStore.addStreamAggr({
-                    name: "sum1h", type: "winBufSum", inAggr: "winbuff1h"
-                })
-                
-                measurementStore.addStreamAggr({
-                    name: "variance1h", type: "variance", inAggr: "winbuff1h"
-                })
-                
-                measurementStore.addStreamAggr({
-                    name: "ma1h", type: "ma", inAggr: "winbuff1h"
-                })
-                                            
-                
+                // adding tick-base aggregates
+                tickTimes.forEach(function (time) {
+                    tickAggregates.forEach(function (aggregate) {
+                        aggregateObj = {
+                            name: aggregate.name + time.name, type: aggregate.type, inAggr: "tick",
+                            emaType: "previous", interval: time.interval * 60 * 60 * 1000, initWindow: 0 * 60 * 1000
+                        };
+                        measurementStore.addStreamAggr(aggregateObj);                        
+                    })
+                });
+
+                // adding tick-base aggregates
+                bufTimes.forEach(function (time) {
+                    var bufname = 'winbuff' + time.name;
+                    // adding timeserieswinbuff aggregate
+                    measurementStore.addStreamAggr({
+                        name: bufname, type: "timeSeriesWinBuf",
+                        timestamp: "Time", value: "Val", winsize: time.interval * 60 * 60 * 1000
+                    });
+
+                    bufAggregates.forEach(function (aggregate) {
+                        aggregateObj = {
+                            name: aggregate.name + time.name, type: aggregate.type, inAggr: bufname                            
+                        };
+                        measurementStore.addStreamAggr(aggregateObj);                        
+                    })
+                });
+
                 /*
                 // TODO: create accompanying stores (resample and aggregates) - to be confirmed
                 // A-sensorname --> aggregates
@@ -332,21 +341,20 @@ function addMeasurement(data) {
                     // write measurement to the store
                     var measurementid = measurementStore.add(measurementObj);
 
-                    // DEBUG - display some aggregates
-                    
+                    // DEBUG - display some aggregates                    
                     var tick = measurementStore.getStreamAggr("tick").GenericTick;
                     var lastval1h = measurementStore.getStreamAggr("winbuff1h").LastVal;
-
                     var ema1h = measurementStore.getStreamAggr("ema1h").EMA;
-                    var var1h = measurementStore.getStreamAggr("variance1h").VAR;
-                    var ma1h = measurementStore.getStreamAggr("ma1h").MA;
+                    var var1h = measurementStore.getStreamAggr("var1h").VAR;
+                    var avg1h = measurementStore.getStreamAggr("avg1h").MA;
                     var count1h = measurementStore.getStreamAggr("count1h").COUNT;
                     var sum1h = measurementStore.getStreamAggr("sum1h").SUM;
+                    var min1h = measurementStore.getStreamAggr("min1h").MIN;
+                    var max1h = measurementStore.getStreamAggr("max1h").MAX;
 
 
-                    console.say("tick: " + tick + ", EMA: " + ema1h + ", VAR: " + var1h + ", MA: " + ma1h + ", CNT: " + count1h + ", SUM: " + sum1h);
-                    // + ", VAR1h: " + var1h + ", last: " + lastval1h + "COUNT: " + count1h);
-                    // console.say("Variance object: " + objToString(varObj));
+                    console.say("tick: " + tick + ", EMA: " + ema1h + ", VAR: " + var1h + ", MA: " + avg1h + ", CNT: " + count1h + ", SUM: " + sum1h + ", MIN: " + min1h + ", MAX: " + max1h);
+                    // TODO: save aggregates to the store
                     
                 } catch (e) {
                     console.say("Parsing error: " + e);
