@@ -48,9 +48,8 @@ bufAggregates = [
     { name: "min", type: "winBufMin" },
     { name: "max", type: "winBufMax" },
     { name: "var", type: "variance" },
-    { name: "avg", type: "ma" }
+    { name: "ma", type: "ma" }
 ]
-
 
 // get functions -------------------------------------------------------------
 
@@ -106,9 +105,9 @@ http.onGet("get-nodes", function (request, response) {
 // DESCRIPTION: Get measurements.
 // ---------------------------------------------------------------------------
 http.onGet("get-measurement", function (request, response) {
-    var sensorname = request.args.name;
-    var startDateStr = request.args.startdate;
-    var endDateStr = request.args.enddate;
+    var sensorname = request.args.name[0];
+    var startDateStr = request.args.startdate[0];
+    var endDateStr = request.args.enddate[0];
 
     console.log(sensorname);
 
@@ -143,7 +142,100 @@ http.onGet("get-measurement", function (request, response) {
     response.send(str);
 });
 
+// ---------------------------------------------------------------------------
+// FUNCTION: onGet - get-aggregate
+// DESCRIPTION: Get aggregate(s) of certain type/timespan
+// ---------------------------------------------------------------------------
+http.onGet("get-aggregate", function (request, response) {
+    console.log(objToString(request.args));
+    var sensorname = request.args.name;
+    var startDateStr = request.args.startdate;
+    var endDateStr = request.args.enddate;
+    var typeStr = request.args.type;
+    var windowStr = request.args.window;
 
+    var twStr = typeStr + windowStr;
+
+    console.log(sensorname);
+    console.say(sensorname + startDateStr + endDateStr);
+
+    var measurementStoreStr = "A" + nameFriendly(String(sensorname));
+
+    // enter dummy sensor measurement (to insert date into a common key vocabulary)
+    var startDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
+        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + startDateStr +
+        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
+    var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
+        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
+        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
+    addMeasurement(JSON.parse(startDateRequest));
+    addMeasurement(JSON.parse(endDateRequest));
+
+    // get measurements
+    var measuredRSet = qm.search({
+        "$from": measurementStoreStr,
+        "Date": [{ "$gt": String(startDateStr) }, { "$lt": String(endDateStr) }]
+    });
+
+    // sort measurements
+    measuredRSet.sort(function (rec1, rec2) { return rec1.Time < rec2.Time; });
+
+    str = "[\n";
+    for (var i = 0; i < measuredRSet.length; i++) {
+        str += '  { "Val":' + measuredRSet[i][twStr] + ', "Timestamp": "' + measuredRSet[i].Time.string + '"}';
+        if (i != measuredRSet.length - 1) str += ',\n';
+    }
+    str += "\n]";
+
+    response.send(str);
+});
+
+// ---------------------------------------------------------------------------
+// FUNCTION: onGet - get-aggregates
+// DESCRIPTION: Get all aggregates
+// ---------------------------------------------------------------------------
+http.onGet("get-aggregates", function (request, response) {
+    console.log(objToString(request.args));
+    var sensorname = request.args.name;
+    var startDateStr = request.args.startdate;
+    var endDateStr = request.args.enddate;
+
+    console.log(sensorname);
+    console.say(sensorname + startDateStr + endDateStr);
+
+    var measurementStoreStr = "A" + nameFriendly(String(sensorname));
+
+    // enter dummy sensor measurement (to insert date into a common key vocabulary)
+    var startDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
+        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + startDateStr +
+        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
+    var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
+        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
+        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
+    addMeasurement(JSON.parse(startDateRequest));
+    addMeasurement(JSON.parse(endDateRequest));
+
+    // get measurements
+    var measuredRSet = qm.search({
+        "$from": measurementStoreStr,
+        "Date": [{ "$gt": String(startDateStr) }, { "$lt": String(endDateStr) }]
+    });
+
+    // sort measurements
+    measuredRSet.sort(function (rec1, rec2) { return rec1.Time < rec2.Time; });
+
+    /*
+    str = "[\n";
+    for (var i = 0; i < measuredRSet.length; i++) {
+        str += '  { "Val":' + measuredRSet[i][twStr] + ', "Timestamp": "' + measuredRSet[i].Time.string + '"}';
+        if (i != measuredRSet.length - 1) str += ',\n';
+    }
+    str += "\n]";
+
+    response.send(str);
+    */
+    http.jsonp(request, response, measuredRSet);
+});
 
 // data cleaning functions ---------------------------------------------------
 
@@ -266,18 +358,8 @@ function addMeasurement(data) {
                 }]);
                        
                 // A-sensorname --> aggregates
-                qm.createStore([{
-                    "name": aggregateStoreStr,
-                    "fields": [
-                        { "name": "Time", "type": "datetime" },
-                        { "name": "Date", "type": "string" },
-                        { "name": "Val", "type": "float" }
-                    ],
-                    "joins": [],
-                    "keys": [
-                        { "field": "Date", "type": "value", "sort": "string", "vocabulary": "date_vocabulary" }
-                    ]
-                }]);                
+                var aggregateStoreDef = getAggregateStoreStructure(aggregateStoreStr);
+                qm.createStore([aggregateStoreDef]);
 
                 measurementStore = qm.store(measurementStoreStr);                
                 
@@ -341,21 +423,9 @@ function addMeasurement(data) {
                     // write measurement to the store
                     var measurementid = measurementStore.add(measurementObj);
 
-                    // DEBUG - display some aggregates                    
-                    var tick = measurementStore.getStreamAggr("tick").GenericTick;
-                    var lastval1h = measurementStore.getStreamAggr("winbuff1h").LastVal;
-                    var ema1h = measurementStore.getStreamAggr("ema1h").EMA;
-                    var var1h = measurementStore.getStreamAggr("var1h").VAR;
-                    var avg1h = measurementStore.getStreamAggr("avg1h").MA;
-                    var count1h = measurementStore.getStreamAggr("count1h").COUNT;
-                    var sum1h = measurementStore.getStreamAggr("sum1h").SUM;
-                    var min1h = measurementStore.getStreamAggr("min1h").MIN;
-                    var max1h = measurementStore.getStreamAggr("max1h").MAX;
-
-
-                    console.say("tick: " + tick + ", EMA: " + ema1h + ", VAR: " + var1h + ", MA: " + avg1h + ", CNT: " + count1h + ", SUM: " + sum1h + ", MIN: " + min1h + ", MAX: " + max1h);
                     // TODO: save aggregates to the store
-                    
+                    var aggregateStore = qm.store(aggregateStoreStr);
+                    var aggregateid = aggregateStore.add(getCurrentAggregates(measurementStore));
                 } catch (e) {
                     console.say("Parsing error: " + e);
                 }
@@ -375,33 +445,80 @@ function addMeasurement(data) {
 // ---------------------------------------------------------------------------
 http.onGet("get-current-aggregates", function (req, response) {    
     var measurementStoreStr = "M" + nameFriendly(req.args.sid[0]);
-
     var measurementStore = qm.store(measurementStoreStr);
-    var strArr;
-
-    var data = {};
-
-    
-    data["ema15m"] = measurementStore.getStreamAggr("ema15m").EMA;
-    data["ema1h"] = measurementStore.getStreamAggr("ema1h").EMA;
-    data["ema6h"] = measurementStore.getStreamAggr("ema6h").EMA;
-    data["ema1d"] = measurementStore.getStreamAggr("ema1d").EMA;
-    data["ema1w"] = measurementStore.getStreamAggr("ema1w").EMA;
-    data["ema1m"] = measurementStore.getStreamAggr("ema1m").EMA;
-    data["ema1y"] = measurementStore.getStreamAggr("ema1y").EMA;
-    
-
-    /*
-    var data = {
-        "ema15m": measurementStore.getStreamAggr("ema15m").EMA,
-        "ema1h": measurementStore.getStreamAggr("ema1h").EMA
-    };
-    */
-
-    // data = strArr;
-
+    var data = getCurrentAggregates(measurementStore);
     http.jsonp(req, response, data);
 });
+
+function getCurrentAggregates(measurementStore) {
+    var data = {};
+
+    data["Time"] = measurementStore.getStreamAggr("tick").UTCTime;
+    data["Date"] = data["Time"].substring(0, 10);
+
+    // adding tick-base aggregates
+    tickTimes.forEach(function (time) {
+        tickAggregates.forEach(function (aggregate) {
+            aggrname = aggregate.name + time.name;
+            aggrtype = aggregate.name;
+            data[aggrname] = measurementStore.getStreamAggr(aggrname)[aggrtype.toUpperCase()];
+        })
+    });
+
+    // adding tick-base aggregates
+    bufTimes.forEach(function (time) {
+        bufAggregates.forEach(function (aggregate) {
+            aggrname = aggregate.name + time.name;
+            aggrtype = aggregate.name;
+            data[aggrname] = measurementStore.getStreamAggr(aggrname)[aggrtype.toUpperCase()];
+        })
+    });
+
+    return data;
+};
+
+// ---------------------------------------------------------------------------
+// FUNCTION: onGet - get-aggregate-store-structure
+// DESCRIPTION: Get aggregate store structure
+// ---------------------------------------------------------------------------
+http.onGet("get-aggregate-store-structure", function(req, response) {
+    var aggregateStoreStr = "A" + nameFriendly(req.args.sid[0]);
+    var data = getAggregateStoreStructure(aggregateStoreStr);    
+    http.jsonp(req, response, data);
+});
+
+function getAggregateStoreStructure(aggregateStoreStr) {
+    
+    var data = {
+        "name": aggregateStoreStr,
+        "fields": [
+            { "name": "Time", "type": "datetime" },
+            { "name": "Date", "type": "string" }           
+        ],
+        "joins": [],
+        "keys": [
+            { "field": "Date", "type": "value", "sort": "string", "vocabulary": "date_vocabulary" }
+        ]
+    };
+
+    // adding tick-base aggregates
+    tickTimes.forEach(function (time) {
+        tickAggregates.forEach(function (aggregate) {
+            aggrname = aggregate.name + time.name;
+            data["fields"].push({ "name": aggrname, "type": "float"});
+        })
+    });    
+
+    // adding tick-base aggregates
+    bufTimes.forEach(function (time) {
+        bufAggregates.forEach(function (aggregate) {
+            aggrname = aggregate.name + time.name;
+            data["fields"].push({ "name": aggrname, "type": "float"});
+        })
+    });
+
+    return data;
+};
 
 
 // generic functions ---------------------------------------------------------
