@@ -105,9 +105,9 @@ http.onGet("get-nodes", function (request, response) {
 // DESCRIPTION: Get measurements.
 // ---------------------------------------------------------------------------
 http.onGet("get-measurement", function (request, response) {
-    var sensorname = request.args.name[0];
-    var startDateStr = request.args.startdate[0];
-    var endDateStr = request.args.enddate[0];
+    var sensorname = request.args.name;
+    var startDateStr = request.args.startdate;
+    var endDateStr = request.args.enddate;
 
     console.log(sensorname);
 
@@ -120,8 +120,8 @@ http.onGet("get-measurement", function (request, response) {
     var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
         "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
         'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    addMeasurement(JSON.parse(startDateRequest));
-    addMeasurement(JSON.parse(endDateRequest));
+    addMeasurementNoControl(JSON.parse(startDateRequest));
+    addMeasurementNoControl(JSON.parse(endDateRequest));
 
     // get measurements
     var measuredRSet = qm.search({
@@ -129,8 +129,11 @@ http.onGet("get-measurement", function (request, response) {
         "Date": [{ "$gt": String(startDateStr) }, { "$lt": String(endDateStr) }]
     });
 
+    console.log(objToString(measuredRSet));
+    console.log(String(startDateStr) + String(endDateStr));
+
     // sort measurements
-    measuredRSet.sort(function (rec1, rec2) { return rec1.Time < rec2.Time; });
+    // measuredRSet.sort(function (rec1, rec2) { return rec1.Time < rec2.Time; });
 
     str = "[\n";
     for (var i = 0; i < measuredRSet.length; i++) {
@@ -168,8 +171,8 @@ http.onGet("get-aggregate", function (request, response) {
     var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
         "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
         'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    addMeasurement(JSON.parse(startDateRequest));
-    addMeasurement(JSON.parse(endDateRequest));
+    addMeasurementNoControl(JSON.parse(startDateRequest));
+    addMeasurementNoControl(JSON.parse(endDateRequest));
 
     // get measurements
     var measuredRSet = qm.search({
@@ -178,7 +181,7 @@ http.onGet("get-aggregate", function (request, response) {
     });
 
     // sort measurements
-    measuredRSet.sort(function (rec1, rec2) { return rec1.Time < rec2.Time; });
+    // measuredRSet.sort(function (rec1, rec2) { return rec1.Time < rec2.Time; });
 
     str = "[\n";
     for (var i = 0; i < measuredRSet.length; i++) {
@@ -212,8 +215,8 @@ http.onGet("get-aggregates", function (request, response) {
     var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
         "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
         'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    addMeasurement(JSON.parse(startDateRequest));
-    addMeasurement(JSON.parse(endDateRequest));
+    addMeasurementNoControl(JSON.parse(startDateRequest));
+    addMeasurementNoControl(JSON.parse(endDateRequest));
 
     // get measurements
     var measuredRSet = qm.search({
@@ -224,16 +227,6 @@ http.onGet("get-aggregates", function (request, response) {
     // sort measurements
     measuredRSet.sort(function (rec1, rec2) { return rec1.Time < rec2.Time; });
 
-    /*
-    str = "[\n";
-    for (var i = 0; i < measuredRSet.length; i++) {
-        str += '  { "Val":' + measuredRSet[i][twStr] + ', "Timestamp": "' + measuredRSet[i].Time.string + '"}';
-        if (i != measuredRSet.length - 1) str += ',\n';
-    }
-    str += "\n]";
-
-    response.send(str);
-    */
     http.jsonp(request, response, measuredRSet);
 });
 
@@ -434,6 +427,95 @@ function addMeasurement(data) {
                 str += "Wrong timestamp!";
                 console.say("Wrong timestamp - last = " + measurementStore[measurementStore.length - 1].Time.string + "; measurement = " + measurement.Timestamp);
             }
+        }
+    }
+    return str;
+}
+
+function addMeasurementNoControl(data) {
+    // init str
+    var str = "";
+
+    // parse all the records in the JSON 
+    for (i = 0; i < data.length; i++) {
+        // parse node	
+        var node = new Object();
+        node.Name = data[i].node.name;
+        node.Position = new Array();
+        node.Position[0] = data[i].node.lat;
+        node.Position[1] = data[i].node.lng;
+        // write node to the store				
+        var nodeid = qm.store("Node").add(node);
+
+        // parse measurements
+        var measurements = data[i].node.measurements;
+
+
+        for (j = 0; j < measurements.length; j++) {
+            // parse type
+            var type = new Object();
+            type.Name = measurements[j].type.name;
+            type.Phenomena = measurements[j].type.phenomenon;
+            type.UoM = measurements[j].type.UoM;
+            // write type to the store
+            var typeid = qm.store("Type").add(type);
+
+            // parse sensor
+            var sensor = new Object();
+            sensor.Name = measurements[j].sensorid;
+            sensor.NodeId = nodeid;
+            sensor.TypeId = typeid;
+            // write sensor to the store
+            var sensorid = qm.store("Sensor").add(sensor);
+
+            var measurementStoreStr = "M" + nameFriendly(sensor.Name);
+            var aggregateStoreStr = "A" + nameFriendly(sensor.Name);
+            var resampledStoreStr = "R" + nameFriendly(sensor.Name);
+
+            var measurementStore = qm.store(measurementStoreStr);
+
+            // if the store does not exits
+            if (measurementStore == null) {
+                // M-sensorname --> measurements
+                qm.createStore([{
+                    "name": measurementStoreStr,
+                    "fields": [
+                        { "name": "Time", "type": "datetime" },
+                        { "name": "Date", "type": "string" },
+                        { "name": "Val", "type": "float" }
+                    ],
+                    "joins": [],
+                    "keys": [
+                        { "field": "Date", "type": "value", "sort": "string", "vocabulary": "date_vocabulary" }
+                    ]
+                }]);
+            }
+
+            // parse measurement
+            var measurement = new Object();
+            measurement.Val = measurements[j].value;
+            measurement.Timestamp = measurements[j].timestamp;
+            measurement.Date = measurement.Timestamp.substr(0, 10);
+
+            // check if the measurement is old
+            
+            str += measurement.Timestamp + "#Type=" + typeid + "\n";;
+
+
+            var measurementJSON = '{ "Val": ' + measurement.Val + ', "Time": "' + measurement.Timestamp + '", "Date": "' + measurement.Date + '"}';
+            console.log("Added", measurementStoreStr);
+
+            try {
+                var measurementObj = JSON.parse(measurementJSON);
+                // write measurement to the store
+                var measurementid = measurementStore.add(measurementObj);
+
+                // TODO: save aggregates to the store
+                var aggregateStore = qm.store(aggregateStoreStr);
+                var aggregateid = aggregateStore.add(getCurrentAggregates(measurementStore));
+            } catch (e) {
+                console.say("Parsing error: " + e);
+            } 
         }
     }
     return str;
