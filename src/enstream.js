@@ -225,7 +225,7 @@ http.onGet("get-aggregates", function (request, response) {
     });
 
     // sort measurements
-    measuredRSet.sort(function (rec1, rec2) { return rec1.Time < rec2.Time; });
+    // measuredRSet.sort(function (rec1, rec2) { return rec1.Time < rec2.Time; });
 
     http.jsonp(request, response, measuredRSet);
 });
