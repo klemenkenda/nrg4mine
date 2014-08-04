@@ -538,6 +538,9 @@ function getCurrentAggregates(measurementStore) {
     data["Time"] = measurementStore.getStreamAggr("tick").UTCTime;
     data["Date"] = data["Time"].substring(0, 10);
 
+    // adding last measurement
+    data["last-measurement"] = measurementStore.getStreamAggr("tick").GenericTick;
+
     // adding tick-base aggregates
     tickTimes.forEach(function (time) {
         tickAggregates.forEach(function (aggregate) {
