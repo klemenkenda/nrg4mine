@@ -535,18 +535,18 @@ http.onGet("get-current-aggregates", function (req, response) {
 function getCurrentAggregates(measurementStore) {
     var data = {};
 
-    data["Time"] = measurementStore.getStreamAggr("tick").UTCTime;
+    data["Time"] = measurementStore.getStreamAggr("tick").val.Time;
     data["Date"] = data["Time"].substring(0, 10);
 
     // adding last measurement
-    data["last-measurement"] = measurementStore.getStreamAggr("tick").GenericTick;
+    data["last-measurement"] = measurementStore.getStreamAggr("tick").val.Val;
 
     // adding tick-base aggregates
     tickTimes.forEach(function (time) {
         tickAggregates.forEach(function (aggregate) {
             aggrname = aggregate.name + time.name;
             aggrtype = aggregate.name;
-            data[aggrname] = measurementStore.getStreamAggr(aggrname)[aggrtype.toUpperCase()];
+            data[aggrname] = measurementStore.getStreamAggr(aggrname).val.Val;
         })
     });
 
@@ -555,7 +555,7 @@ function getCurrentAggregates(measurementStore) {
         bufAggregates.forEach(function (aggregate) {
             aggrname = aggregate.name + time.name;
             aggrtype = aggregate.name;
-            data[aggrname] = measurementStore.getStreamAggr(aggrname)[aggrtype.toUpperCase()];
+            data[aggrname] = measurementStore.getStreamAggr(aggrname).val.Val;
         })
     });
 
