@@ -173,9 +173,7 @@ http.onGet("n-get-measurement", function (request, response) {
     // go through the list of sensors
     for (i = 0; i < sensorListV.length; i++) {
         var sensorName = sensorListV[i];
-        var measurementStoreStr = "M" + nameFriendly(String(sensorName));        
-
-        console.say(measurementStoreStr + startDateStr + endDateStr);
+        var measurementStoreStr = "M" + nameFriendly(String(sensorName));                
 
         // get measurements
         var measuredRSet = qm.search({
