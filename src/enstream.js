@@ -9,6 +9,7 @@
 //   2014-06-01: Rewritten for the open-source QMiner. (Klemen Kenda)
 //   2014-06-01: Changed database schema (dynamic stores - per sensor)
 //               (Klemen Kenda)
+//   2014-08-06: Added multiple sensor retrieval functions (Klemen Kenda)
 // ---------------------------------------------------------------------------
 
 // initialization
@@ -174,6 +175,8 @@ http.onGet("n-get-measurement", function (request, response) {
         var sensorName = sensorListV[i];
         var measurementStoreStr = "M" + nameFriendly(String(sensorName));        
 
+        console.say(measurementStoreStr + startDateStr + endDateStr);
+
         // get measurements
         var measuredRSet = qm.search({
             "$from": measurementStoreStr,
@@ -181,9 +184,9 @@ http.onGet("n-get-measurement", function (request, response) {
         });
     
         str = "[\n";
-        for (var i = 0; i < measuredRSet.length; i++) {
-            str += '  { "Val":' + measuredRSet[i].Val + ', "Timestamp": "' + measuredRSet[i].Time.string + '"}';
-            if (i != measuredRSet.length - 1) str += ',\n';
+        for (var j = 0; j < measuredRSet.length; j++) {
+            str += '  { "Val":' + measuredRSet[j].Val + ', "Timestamp": "' + measuredRSet[j].Time.string + '"}';
+            if (j != measuredRSet.length - 1) str += ',\n';
         }
         str += "\n]";
 
