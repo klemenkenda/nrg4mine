@@ -106,9 +106,9 @@ http.onGet("get-nodes", function (request, response) {
 // DESCRIPTION: Get measurements.
 // ---------------------------------------------------------------------------
 http.onGet("get-measurement", function (request, response) {
-    var sensorname = request.args.name;
-    var startDateStr = request.args.startdate;
-    var endDateStr = request.args.enddate;
+    var sensorname = request.args.name[0];
+    var startDateStr = request.args.startdate[0];
+    var endDateStr = request.args.enddate[0];
 
     console.log(sensorname);
 
@@ -130,7 +130,7 @@ http.onGet("get-measurement", function (request, response) {
         "Date": [{ "$gt": String(startDateStr) }, { "$lt": String(endDateStr) }]
     });
 
-    console.log(objToString(measuredRSet));
+    // console.log(objToString(measuredRSet));
     console.log(String(startDateStr) + String(endDateStr));
 
     // sort measurements
@@ -602,7 +602,7 @@ function addMeasurement(data) {
                     tickAggregates.forEach(function (aggregate) {
                         aggregateObj = {
                             name: aggregate.name + time.name, type: aggregate.type, inAggr: "tick",
-                            emaType: "previous", interval: time.interval * 60 * 60 * 1000, initWindow: 0 * 60 * 1000
+                            emaType: "previous", interval: time.interval * 60 * 60 * 1000 - 1, initWindow: 0 * 60 * 1000
                         };
                         measurementStore.addStreamAggr(aggregateObj);                        
                     })
@@ -614,7 +614,7 @@ function addMeasurement(data) {
                     // adding timeserieswinbuff aggregate
                     measurementStore.addStreamAggr({
                         name: bufname, type: "timeSeriesWinBuf",
-                        timestamp: "Time", value: "Val", winsize: time.interval * 60 * 60 * 1000
+                        timestamp: "Time", value: "Val", winsize: time.interval * 60 * 60 * 1000 - 1
                     });
 
                     bufAggregates.forEach(function (aggregate) {
@@ -806,8 +806,8 @@ function getAggregateStoreStructure(aggregateStoreStr) {
 // FUNCTION: onGet - add
 // DESCRIPTION: Generic store add function
 // ---------------------------------------------------------------------------
-http.onGet("add", function (rec, response) {
-    qm.store(rec.store).add(JSON.parse(rec.data));
+http.onGet("add", function (request, response) {
+    qm.store(request.args.name).add(JSON.parse(request.args.data));
     response.send("OK");
 });
 
@@ -891,3 +891,27 @@ function mysqlDateStr(myDate) {
 function nameFriendly(myName) {    
     return myName.replace(/\W/g, '');
 }
+
+// ---------------------------------------------------------------------------
+// FUNCTION: onGet - get-daily
+// DESCRIPTION: Returns data by days (separate rows)
+// ---------------------------------------------------------------------------
+http.onGet("get-daily", function (request, response) {
+    var sensorname = request.args.name[0];
+    var measurementStoreStr = "M" + nameFriendly(String(sensorname));
+    var recSet = qm.store(measurementStoreStr);
+
+    var oldDate = '0000-00-00';
+    var str = '';
+
+    for (i = 0; i < recSet.length; i++) {
+        newDate = recSet[i].Date;
+        if (oldDate != newDate) {
+            str += '\n';
+            str += newDate;
+            oldDate = newDate;
+        }
+        str += ',' + recSet[i].Val;
+    }
+    response.send(str);
+});
