@@ -16,41 +16,9 @@
 console.say("NRG4Cast Miner", "Starting ...");
 
 // includes
-// var assert = require("assert.js");
 var tm = require("time");
-
-// config tick aggregates
-tickTimes = [
-    { name: "1h", interval: 1 },
-    { name: "6h", interval: 6 },
-    { name: "1d", interval: 24 },
-    { name: "1w", interval: 7 * 24 },
-    { name: "1m", interval: 30 * 24 },
-    { name: "1y", interval: 365 * 24 }
-];
-
-tickAggregates = [
-    { name: "ema", type: "ema" }
-];
-
-// config winbuff aggregates
-bufTimes = [
-    { name: "1h", interval: 1 },
-    { name: "6h", interval: 6 },
-    { name: "1d", interval: 24 },
-    { name: "1w", interval: 7 * 24 },
-    { name: "1m", interval: 30 * 24 },
-    { name: "1y", interval: 365 * 24 }
-]
-
-bufAggregates = [
-    { name: "count", type: "winBufCount" },
-    { name: "sum", type: "winBufSum" },
-    { name: "min", type: "winBufMin" },
-    { name: "max", type: "winBufMax" },
-    { name: "var", type: "variance" },
-    { name: "ma", type: "ma" }
-]
+var push = require("pushData.js");
+require("config.js");
 
 // get functions -------------------------------------------------------------
 
@@ -100,6 +68,22 @@ http.onGet("get-nodes", function (request, response) {
 });
 
 
+// ---------------------------------------------------------------------------
+// FUNCTION: addDate
+// DESCRIPTION: Adding dummy record into virtual-node for specified date
+// ---------------------------------------------------------------------------
+function addDate(startDateStr, endDateStr) {
+    // enter dummy sensor measurement (to insert date into a common key vocabulary)
+    var startDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
+        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + startDateStr +
+        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
+    var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
+        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
+        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
+    addMeasurementNoControl(JSON.parse(startDateRequest));
+    addMeasurementNoControl(JSON.parse(endDateRequest));
+}
+
 
 // ---------------------------------------------------------------------------
 // FUNCTION: onGet - get-measurements
@@ -113,16 +97,9 @@ http.onGet("get-measurement", function (request, response) {
     console.log(sensorname);
 
     var measurementStoreStr = "M" + nameFriendly(String(sensorname));
-
-    // enter dummy sensor measurement (to insert date into a common key vocabulary)
-    var startDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + startDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    addMeasurementNoControl(JSON.parse(startDateRequest));
-    addMeasurementNoControl(JSON.parse(endDateRequest));
+    
+    // add dummy date
+    addDate(startDateStr, endDateStr);
 
     // get measurements
     var measuredRSet = qm.search({
@@ -160,15 +137,8 @@ http.onGet("n-get-measurement", function (request, response) {
     var startDateStr = String(request.args.startdate);
     var endDateStr = String(request.args.enddate);
 
-    // enter dummy sensor measurement (to insert date into a common key vocabulary)
-    var startDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + startDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    addMeasurementNoControl(JSON.parse(startDateRequest));
-    addMeasurementNoControl(JSON.parse(endDateRequest));
+    // add dummy date
+    addDate(startDateStr, endDateStr);
 
     // go through the list of sensors
     for (i = 0; i < sensorListV.length; i++) {
@@ -214,15 +184,8 @@ http.onGet("get-aggregate", function (request, response) {
 
     var measurementStoreStr = "A" + nameFriendly(String(sensorname));
 
-    // enter dummy sensor measurement (to insert date into a common key vocabulary)
-    var startDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + startDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    addMeasurementNoControl(JSON.parse(startDateRequest));
-    addMeasurementNoControl(JSON.parse(endDateRequest));
+    // add dummy date
+    addDate(startDateStr, endDateStr);
 
     // get measurements
     var measuredRSet = qm.search({
@@ -261,15 +224,8 @@ http.onGet("n-get-aggregate", function (request, response) {
 
     var twStr = typeStr + windowStr;
 
-    // enter dummy sensor measurement (to insert date into a common key vocabulary)
-    var startDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + startDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    addMeasurementNoControl(JSON.parse(startDateRequest));
-    addMeasurementNoControl(JSON.parse(endDateRequest));
+    // add dummy date
+    addDate(startDateStr, endDateStr);
 
     // go through the list of sensors
     for (i = 0; i < sensorListV.length; i++) {
@@ -310,15 +266,8 @@ http.onGet("get-aggregates", function (request, response) {
 
     var measurementStoreStr = "A" + nameFriendly(String(sensorname));
 
-    // enter dummy sensor measurement (to insert date into a common key vocabulary)
-    var startDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + startDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    addMeasurementNoControl(JSON.parse(startDateRequest));
-    addMeasurementNoControl(JSON.parse(endDateRequest));
+    // add dummy date
+    addDate(startDateStr, endDateStr);
 
     // get measurements
     var measuredRSet = qm.search({
@@ -346,15 +295,8 @@ http.onGet("n-get-aggregates", function (request, response) {
     var startDateStr = String(request.args.startdate);
     var endDateStr = String(request.args.enddate);
 
-    // enter dummy sensor measurement (to insert date into a common key vocabulary)
-    var startDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + startDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    var endDateRequest = '[{"node":{"id":"virtual-node","name":"virtual-node","lat":0,"lng":0, \
-        "measurements":[{"sensorid":"virtual-node-request","value":1.0,"timestamp":"' + endDateStr +
-        'T00:00:00.000","type":{"id":"0","name":"virtual-request","phenomenon":"request","UoM":"r"}}]}}]';
-    addMeasurementNoControl(JSON.parse(startDateRequest));
-    addMeasurementNoControl(JSON.parse(endDateRequest));
+    // add dummy date
+    addDate(startDateStr, endDateStr);
 
     // go through the list of sensors
     for (i = 0; i < sensorListV.length; i++) {
@@ -602,7 +544,7 @@ function addMeasurement(data) {
                     tickAggregates.forEach(function (aggregate) {
                         aggregateObj = {
                             name: aggregate.name + time.name, type: aggregate.type, inAggr: "tick",
-                            emaType: "previous", interval: time.interval * 60 * 60 * 1000, initWindow: 0 * 60 * 1000
+                            emaType: "previous", interval: time.interval * 60 * 60 * 1000 - 1, initWindow: 0 * 60 * 1000
                         };
                         measurementStore.addStreamAggr(aggregateObj);                        
                     })
@@ -614,7 +556,7 @@ function addMeasurement(data) {
                     // adding timeserieswinbuff aggregate
                     measurementStore.addStreamAggr({
                         name: bufname, type: "timeSeriesWinBuf",
-                        timestamp: "Time", value: "Val", winsize: time.interval * 60 * 60 * 1000
+                        timestamp: "Time", value: "Val", winsize: time.interval * 60 * 60 * 1000 - 1
                     });
 
                     bufAggregates.forEach(function (aggregate) {
@@ -799,33 +741,38 @@ function getAggregateStoreStructure(aggregateStoreStr) {
     return data;
 };
 
-
-// generic functions ---------------------------------------------------------
-
 // ---------------------------------------------------------------------------
-// FUNCTION: onGet - add
-// DESCRIPTION: Generic store add function
+// FUNCTION: onGet - push-sync-stores
+// DESCRIPTION: Push data from stores in a uniformly increasing timeline.
 // ---------------------------------------------------------------------------
-http.onGet("add", function (rec, response) {
-    qm.store(rec.store).add(JSON.parse(rec.data));
-    response.send("OK");
-});
+http.onGet("push-sync-stores", function (request, response) {
+    var sensorListStr = request.args.sid[0];
+    var sensorListV = sensorListStr.split(",");    
+    var startDateStr = String(request.args.startdate);
+    var endDateStr = String(request.args.enddate);
+    var lastTs = request.args.lastts;
 
-// ---------------------------------------------------------------------------
-// FUNCTION: onGet - records
-// DESCRIPTION: Generic store retrieve records function
-// ---------------------------------------------------------------------------
-http.onGet("records", function (query, response) {
-    var recs = qm.store(query.store).recs;
-    var str = "";
+    // create dummy dates for indexing
+    addDate(startDateStr, endDateStr);
 
-    if (recs.empty) str = "No records ...";
+    // prepare inStores
+    var inStores = [];
 
-    for (var i = 0; i < recs.length; i++) {
-        str += objToString(recs[i]);
-        str += "\n";
-    }
-    response.send(str);
+    sensorListV.forEach(function (sensorName) {
+        var measurementStoreStr = "M" + nameFriendly(sensorName);
+        var measurementStore = qm.store(measurementStoreStr);
+        var aggregateStoreStr = "A" + nameFriendly(sensorName);
+        var aggregateStore = qm.store(aggregateStoreStr);
+        inStores.push(measurementStore);
+        inStores.push(aggregateStore);
+    });
+
+    // call the push routine
+    var lastTimeStamp = push.pushData(inStores, startDateStr, endDateStr, remoteURL, lastTs);
+    console.log("LTS" + lastTimeStamp);
+
+    // output last valid timestamp
+    http.jsonp(request, response, lastTimeStamp);
 });
 
 
@@ -888,6 +835,36 @@ function mysqlDateStr(myDate) {
 // DESCRIPTION: Returns store name friendly name; only use alphanumeric
 //              characters.
 // ---------------------------------------------------------------------------
-function nameFriendly(myName) {    
+function nameFriendly(myName) {
     return myName.replace(/\W/g, '');
 }
+
+// generic functions ---------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// FUNCTION: onGet - add
+// DESCRIPTION: Generic store add function
+// ---------------------------------------------------------------------------
+http.onGet("add", function (request, response) {
+    qm.store(request.args.name).add(JSON.parse(request.args.data));
+    response.send("OK");
+});
+
+// ---------------------------------------------------------------------------
+// FUNCTION: onGet - records
+// DESCRIPTION: Generic store retrieve records function
+// ---------------------------------------------------------------------------
+http.onGet("records", function (request, response) {
+    var recs = qm.store(String(request.args.store)).recs;
+    var str = "";
+
+    if (recs.empty) str = "No records ...";
+
+    for (var i = 0; i < recs.length; i++) {
+        str += objToString(recs[i]);
+        str += "\n";
+    }
+    response.send(str);
+});
+
+
