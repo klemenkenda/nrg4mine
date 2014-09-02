@@ -768,8 +768,7 @@ http.onGet("push-sync-stores", function (request, response) {
     });
 
     // call the push routine
-    var lastTimeStamp = push.pushData(inStores, startDateStr, endDateStr, remoteURL, lastTs);
-    console.log("LTS" + lastTimeStamp);
+    var lastTimeStamp = push.pushData(inStores, startDateStr, endDateStr, remoteURL, lastTs);    
 
     // output last valid timestamp
     http.jsonp(request, response, lastTimeStamp);
