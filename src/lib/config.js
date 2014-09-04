@@ -32,4 +32,4 @@ bufAggregates = [
 ]
 
 // remote modelling instance of QMiner - add function
-remoteURL = "http://localhost:9888/enstream/add";
+remoteURL = "http://localhost:9888/modelling/add";

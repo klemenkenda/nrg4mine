@@ -3,7 +3,7 @@
 // AUTHOR: Klemen Kenda (IJS)
 // DATE: 2013-06-01
 // DESCRIPTION:
-//   JS part of the NRG4Cast QMiner
+//   JS part of the NRG4Cast QMiner - stream engine
 // ---------------------------------------------------------------------------
 // HISTORY:
 //   2014-06-01: Rewritten for the open-source QMiner. (Klemen Kenda)
@@ -13,7 +13,7 @@
 // ---------------------------------------------------------------------------
 
 // initialization
-console.say("NRG4Cast Miner", "Starting ...");
+console.say("NRG4Cast Miner - Stream Processing Engine", "Starting ...");
 
 // includes
 var tm = require("time");
@@ -107,19 +107,22 @@ http.onGet("get-measurement", function (request, response) {
         "Date": [{ "$gt": String(startDateStr) }, { "$lt": String(endDateStr) }]
     });
 
-    console.log(objToString(measuredRSet));
-    console.log(String(startDateStr) + String(endDateStr));
+    // console.log(objToString(measuredRSet));
+    // console.log(String(startDateStr) + String(endDateStr));
 
     // sort measurements
     // measuredRSet.sort(function (rec1, rec2) { return rec1.Time < rec2.Time; });
 
-    str = "[\n";
-    for (var i = 0; i < measuredRSet.length; i++) {
-        str += '  { "Val":' + measuredRSet[i].Val + ', "Timestamp": "' + measuredRSet[i].Time.string + '"}';
-        if (i != measuredRSet.length - 1) str += ',\n';
+    if (measuredRSet == null) str = "[]";
+    else {
+        str = "[\n";
+        for (var i = 0; i < measuredRSet.length; i++) {
+            str += '  { "Val":' + measuredRSet[i].Val + ', "Timestamp": "' + measuredRSet[i].Time.string + '"}';
+            if (i != measuredRSet.length - 1) str += ',\n';
+        }
+        str += "\n]";
     }
-    str += "\n]";
-    
+
     response.send(str);
 });
 
@@ -151,12 +154,15 @@ http.onGet("n-get-measurement", function (request, response) {
             "Date": [{ "$gt": String(startDateStr) }, { "$lt": String(endDateStr) }]
         });
     
-        str = "[\n";
-        for (var j = 0; j < measuredRSet.length; j++) {
-            str += '  { "Val":' + measuredRSet[j].Val + ', "Timestamp": "' + measuredRSet[j].Time.string + '"}';
-            if (j != measuredRSet.length - 1) str += ',\n';
+        if (measuredRSet == null) str = "[]";
+        else {
+            str = "[\n";
+            for (var i = 0; i < measuredRSet.length; i++) {
+                str += '  { "Val":' + measuredRSet[i].Val + ', "Timestamp": "' + measuredRSet[i].Time.string + '"}';
+                if (i != measuredRSet.length - 1) str += ',\n';
+            }
+            str += "\n]";
         }
-        str += "\n]";
 
         data = JSON.parse(str);
         dataObj.push({ "name": sensorName, "data": data });
@@ -195,13 +201,15 @@ http.onGet("get-aggregate", function (request, response) {
 
     // sort measurements
     // measuredRSet.sort(function (rec1, rec2) { return rec1.Time < rec2.Time; });
-
-    str = "[\n";
-    for (var i = 0; i < measuredRSet.length; i++) {
-        str += '  { "Val":' + measuredRSet[i][twStr] + ', "Timestamp": "' + measuredRSet[i].Time.string + '"}';
-        if (i != measuredRSet.length - 1) str += ',\n';
+    if (measuredRSet == null) str = "[]";
+    else {
+        str = "[\n";
+        for (var i = 0; i < measuredRSet.length; i++) {
+            str += '  { "Val":' + measuredRSet[i][twStr] + ', "Timestamp": "' + measuredRSet[i].Time.string + '"}';
+            if (i != measuredRSet.length - 1) str += ',\n';
+        }
+        str += "\n]";
     }
-    str += "\n]";
 
     response.send(str);
 });
@@ -238,12 +246,15 @@ http.onGet("n-get-aggregate", function (request, response) {
             "Date": [{ "$gt": String(startDateStr) }, { "$lt": String(endDateStr) }]
         });
 
-        str = "[\n";
-        for (var j = 0; j < measuredRSet.length; j++) {
-            str += '  { "Val":' + measuredRSet[j][twStr] + ', "Timestamp": "' + measuredRSet[j].Time.string + '"}';
-            if (j != measuredRSet.length - 1) str += ',\n';
+        if (measuredRSet == null) str = "[]";
+        else {
+            str = "[\n";
+            for (var j = 0; j < measuredRSet.length; j++) {
+                str += '  { "Val":' + measuredRSet[j][twStr] + ', "Timestamp": "' + measuredRSet[j].Time.string + '"}';
+                if (j != measuredRSet.length - 1) str += ',\n';
+            }
+            str += "\n]";
         }
-        str += "\n]";
         
         data = JSON.parse(str);
         dataObj.push({ "name": sensorName, "data": data });

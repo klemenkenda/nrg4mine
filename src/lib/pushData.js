@@ -96,7 +96,7 @@ exports.pushData = function (inStores, startDate, endDate, remoteURL, lastTs) {
         delete val.$id;        
 
         // making request to remote instance of QMiner
-        var url = remoteURL + '?store=' + loadStores[lowestRecIdx].store + '&data=' + JSON.stringify(val);
+        var url = remoteURL + '?store=' + loadStores[lowestRecIdx].name + '&data=' + JSON.stringify(val);
         http.get(url);
 
         currRecIdxs[lowestRecIdx]++
