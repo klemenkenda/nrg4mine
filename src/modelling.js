@@ -18,7 +18,8 @@ require("config.js");
 
 // definition of the model
 modelConf = {
-    name: "EPEX",
+    id: 1,
+    name: "EPEX00h",
     sensors: [
         { name: "Electricity-Price", ts: [0, -1, -2], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"] },
         { name: "Electricity-Quantity", ts: [0, -1, -2], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"] },
@@ -29,29 +30,65 @@ modelConf = {
         { name: "WU-Duesseldorf-WU-pressure", ts: [0], aggrs: ["ma1w"] },
         { name: "WU-Duesseldorf-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] }
     ],
-    resampleint: 24 * 60 * 60 * 1000,
+    prediction: { name: "Electricity-Price", ts: [12] },
+    method: "linreg",
+    resampleint: 1 * 60 * 60 * 1000,
     lastTs: 0
 };
 
+/*
+[11:00:25] Maja Skrjanc: ID of the model 
+- (od kdaj je model v uporabi, je aktiven)
+[11:00:29] Maja Skrjanc: time stampe
+[11:00:34] Maja Skrjanc: type of prediction
+[11:00:38] Maja Skrjanc: timewindow
+[11:00:45] Maja Skrjanc: preidction itself:)
+*/
+
+
+/*
 modelConf = {
     name: "EPEX",
     sensors: [
-        { name: "WU-Duesseldorf-WU-pressure", ts: [0], aggrs: ["ma1w"] }        
+        { name: "Electricity-Price", ts: [0, -1, -2], aggrs: ["ma1w"] },
     ],
     resampleint: 24 * 60 * 60 * 1000,
     lastTs: 0
 };
+*/
 
-// make the merger
+// init empty stores if no data is yet in ... 
+
+
+// make the merger & resampler & corresponding stores
 http.onGet("test", function (request, response) {
-    var mergerJSON = model.makeStreamMerger(modelConf);
-    // qm.newStreamAggr(mergerJSON);
-    http.jsonp(request, response, mergerJSON);
+    
+
+    model.makeStores(modelConf);
+
+    // get merger conf
+    var mergerJSON = model.getMergerConf(modelConf);
+    console.log(JSON.stringify(mergerJSON));   
+
+    // get store conf
+    var mergerStoreDef = model.getMergedStoreDef(mergerJSON, "");
+    var mergerResampledStoreDef = model.getMergedStoreDef(mergerJSON, "R");
+
+    // create out/resampled stores
+    var mergedStore = qm.createStore([mergerStoreDef]);
+    qm.createStore([mergerResampledStoreDef]);
+
+    // create merger aggregate
+    qm.newStreamAggr(mergerJSON);    
+
+    // attach resampler to the merger
+    var resampledAggrDef = model.getResampledAggrDef(mergerJSON, modelConf);
+    mergedStore.addStreamAggr(resampledAggrDef);
+
+    http.jsonp(request, response, resampledAggrDef);
 });
 
-
-// make the resampler
-
+// make feature vectors
 
 
 
