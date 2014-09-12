@@ -14,56 +14,75 @@ console.say("NRG4Cast Miner - Modelling", "Starting ...");
 // includes
 var tm = require("time");
 var model = require("tsmodel.js");
+var analytics = require("analytics.js");
+var evaluation = require("evaluation.js");
+var svmrModule = require("svmRegression.js");
 require("config.js");
 
 // definition of the model
 modelConf = {
     id: 1,
     name: "EPEX00h",
-    sensors: [
-        { name: "Electricity-Price", ts: [0, -1, -2], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"] },
-        { name: "Electricity-Quantity", ts: [0, -1, -2], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"] },
+    timestamp: "Time",
+    sensors: [        
+        
+        { name: "Electricity-Price", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"] },        
+        { name: "Electricity-Quantity", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"] },                
 
-        { name: "WU-Duesseldorf-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"] },
         { name: "WU-Duesseldorf-WU-windspeed", ts: [0], aggrs: ["ma1w"] },
+        { name: "WU-Duesseldorf-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] },
+        { name: "WU-Duesseldorf-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"] },        
         { name: "WU-Duesseldorf-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"] },
         { name: "WU-Duesseldorf-WU-pressure", ts: [0], aggrs: ["ma1w"] },
-        { name: "WU-Duesseldorf-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] }
+        
+        { name: "WU-Wiesbaden-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"] },
+        { name: "WU-Wiesbaden-WU-windspeed", ts: [0], aggrs: ["ma1w"] },
+        { name: "WU-Wiesbaden-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"] },
+        { name: "WU-Wiesbaden-WU-pressure", ts: [0], aggrs: ["ma1w"] },
+        { name: "WU-Wiesbaden-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] },
+        
+        { name: "WU-Hanover-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"] },
+        { name: "WU-Hanover-WU-windspeed", ts: [0], aggrs: ["ma1w"] },
+        { name: "WU-Hanover-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"] },
+        { name: "WU-Hanover-WU-pressure", ts: [0], aggrs: ["ma1w"] },
+        { name: "WU-Hanover-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] },
+        
+        { name: "WU-Laage-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"] },
+        { name: "WU-Laage-WU-windspeed", ts: [0], aggrs: ["ma1w"] },
+        { name: "WU-Laage-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"] },
+        { name: "WU-Laage-WU-pressure", ts: [0], aggrs: ["ma1w"] },
+        { name: "WU-Laage-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] },
+        
+        { name: "WU-BerlinTegel-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"] },
+        { name: "WU-BerlinTegel-WU-windspeed", ts: [0], aggrs: ["ma1w"] },
+        { name: "WU-BerlinTegel-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"] },
+        { name: "WU-BerlinTegel-WU-pressure", ts: [0], aggrs: ["ma1w"] },
+        { name: "WU-BerlinTegel-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] }            
+        
     ],
-    prediction: { name: "Electricity-Price", ts: [12] },
+    prediction: { name: "Electricity-Price", ts: 24 },
     method: "linreg",
+    params: {
+        "gracePeriod": 2,
+        "splitConfidence": 1e-4,
+        "tieBreaking": 1e-14,
+        "driftCheck": 1000,
+        "windowSize": 100000,
+        "conceptDriftP": true,
+        "clsLeafModel": "naiveBayes",
+        "clsAttrHeuristic": "giniGain",
+        "maxNodes": 60,
+        "attrDiscretization": "bst"
+    },
+    normFactor: 200,
     resampleint: 1 * 60 * 60 * 1000,
     lastTs: 0
 };
 
-/*
-[11:00:25] Maja Skrjanc: ID of the model 
-- (od kdaj je model v uporabi, je aktiven)
-[11:00:29] Maja Skrjanc: time stampe
-[11:00:34] Maja Skrjanc: type of prediction
-[11:00:38] Maja Skrjanc: timewindow
-[11:00:45] Maja Skrjanc: preidction itself:)
-*/
-
-
-/*
-modelConf = {
-    name: "EPEX",
-    sensors: [
-        { name: "Electricity-Price", ts: [0, -1, -2], aggrs: ["ma1w"] },
-    ],
-    resampleint: 24 * 60 * 60 * 1000,
-    lastTs: 0
-};
-*/
-
-// init empty stores if no data is yet in ... 
-
 
 // make the merger & resampler & corresponding stores
-http.onGet("test", function (request, response) {
-    
-
+http.onGet("init", function (request, response) {    
+    // init empty stores if no data is yet in ... 
     model.makeStores(modelConf);
 
     // get merger conf
@@ -88,11 +107,142 @@ http.onGet("test", function (request, response) {
     http.jsonp(request, response, resampledAggrDef);
 });
 
-// make feature vectors
+http.onGet("load-model-data", function (request, response) {
+    var url = model.getFetchURL(modelConf, "2010-01-01", "2011-01-01", 0);
 
+    response.send(url);
+});
 
+http.onGet("evaluate", function (request, response) {
+    // resample store start is at 3:00:00 + 6 is first noon
+    // init modeling conditions
+    var startoffset = 6 + 2 * 24;  // starting at noon 
+    var offset = startoffset;
 
+    // source store        
+    var resampledStore = qm.store("R" + modelConf.name);
 
+    // create feature space
+    console.log("Create feature space");
+    var fsConf = model.getFtrSpaceDef(modelConf);
+    var ftrSpace = analytics.newFeatureSpace(fsConf);    
+    console.log("FtrSp dim:" + ftrSpace.dim);
+
+    var rec = model.getRecord(modelConf, resampledStore, offset);
+
+    var htConf = model.getHtFtrSpaceDef(modelConf);
+
+    // defining border between training set and test set
+    var trainingThreshold = 2 * 365;
+
+    // main loop for testing
+    var N = 3 * 365 + 7 * 30;
+    // N = 10;       
+
+    // normalization - learning    
+    console.log("Learning normalization parameters");
+    for (i = 0; i < N; i++) {
+        var rec = model.getRecord(modelConf, resampledStore, i * 24 + offset);
+        ftrSpace = ftrSpace.updateRecord(rec);
+    }       
+
+    // initialize model
+    
+    // linear algebra
+    console.log("Initialize linreg");
+    // var linreg = analytics.newRecLinReg({ "dim": ftrSpace.dim, "forgetFact": 1.0 }); 
+    var ridreg = new analytics.ridgeRegression(0.1, ftrSpace.dim, 2* 365);
+    // var NN = analytics.newNN({ "layout": [ftrSpace.dim, 12, 4, 3, 1] });    
+    // var svmR = svmrModule.newSvmRegression(ftrSpace.dim, { "c": 20, "eps": 1E-4, "maxTime": 60, "maxIterations": 1000000, batchSize: 365 }, 365);
+    // var ht = analytics.newHoeffdingTree(htConf, modelConf.params);
+
+    var prediction = -1;
+    var str = "i;val;pred\n";
+
+    var me = evaluation.newMeanError();
+    var mae = evaluation.newMeanAbsoluteError();
+    var mse = evaluation.newMeanSquareError();
+    var rmse = evaluation.newRootMeanSquareError();
+    var rsquare = evaluation.newRSquareScore();
+    var pError;
+    
+    for (var i = 0; i < N; i++) {
+        // create vector
+        console.log("Get record");
+        var rec = model.getRecord(modelConf, resampledStore, offset);
+        console.log("Extract feature vector");
+        var vec = ftrSpace.ftrVec(rec);        
+        // printj(rec);
+        // la.printFeatVec(vec, ftrSpace);
+        console.log("Make prediction");
+        // prediction = linreg.predict(vec);
+        prediction = ridreg.predict(vec);
+        // predictions = NN.predict(vec); prediction = predictions[0];
+        // prediction = svmR.predict(vec);
+        /*
+        var vecArr = [];
+        for (var rowN = 0; rowN < vec.length; rowN++) {
+            vecArr.push(vec.at(rowN));
+        }
+        prediction = ht.predict([], vecArr);
+        */
+
+        // get value
+        console.log("Get learn value");
+        var value = model.getLearnValue(modelConf, resampledStore, offset);
+        // NN - value normalization
+        // value = value / modelConf.normFactor;
+        // outVec = linalg.newVec([value]);
+        // console.log("Value: " + value)
+
+        // learn        
+        console.log("Learn");
+        // linreg.learn(vec, value);        
+        ridreg.addupdate(vec, value);
+        // NN.learn(vec, outVec);
+        // learn every 30 samples
+        /*
+        if ((i % 365 != 0) && (i != 0)) svmR.add(vec, value);
+        else {
+            // la.printFeatVec(vec, ftrSpace);
+            svmR.learn(vec, value);
+        }
+        */
+        // ht.process([], vecArr, value);
+        // NN renormalization
+        value = value * modelConf.normFactor;
+        prediction = prediction * modelConf.normFactor;
+
+        console.log("Finish learning");
+        // previous value model
+        // var prediction = model.getLearnValue(modelConf, resampledStore, offset - 24);        
+
+        // display results
+        if (i > trainingThreshold) {
+            me.update(value, prediction);
+            mae.update(value, prediction);
+            mse.update(value, prediction);
+            rmse.update(value, prediction);
+            rsquare.update(value, prediction);            
+        }        
+        
+        diff = prediction - value;
+        console.log(i + " - diff: " + diff);
+        str += i + ";" + value + ";" + prediction + "\n";
+        // move 1 day forward
+        offset += 24;        
+    }
+
+    // ht.exportModel({ "file": "./sandbox/ht/epex.gv", "type": "DOT" });
+
+    str = "me;mae;mse;rmse;rsquared\n" + me.getError() + ";" + mae.getError() + ";" + mse.getError() + ";" + rmse.getError() + ";" + rsquare.getError() + "\n\n\n" + str;
+    
+    str = str.replace(/\./g, ",");
+    // create feature vector
+    // http.jsonp(request, response, pError);
+    response.send(str);
+
+});
 
 
 
