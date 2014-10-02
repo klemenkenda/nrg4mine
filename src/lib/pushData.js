@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // FILE: pushData.js
-// AUTHOR: Klemen Kenda (IJS)
+// AUTHOR: Blaz Kazic (IJS), Klemen Kenda (IJS)
 // DATE: 2014-09-01
 // DESCRIPTION:
 //   Pushing data from one QMiner instance to another.

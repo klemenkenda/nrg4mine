@@ -17,6 +17,7 @@ var model = require("tsmodel.js");
 var analytics = require("analytics.js");
 var evaluation = require("evaluation.js");
 var svmrModule = require("svmRegression.js");
+var baselinePredictors = require("baselinePredictors.js");
 require("config.js");
 
 // definition of the model
@@ -26,38 +27,38 @@ modelConf = {
     timestamp: "Time",
     sensors: [        
         
-        { name: "Electricity-Price", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"] },        
-        { name: "Electricity-Quantity", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"] },                
+        { name: "Electricity-Price", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"], type: "sensor" },        
+        { name: "Electricity-Quantity", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"], type: "sensor" },
 
-        { name: "WU-Duesseldorf-WU-windspeed", ts: [0], aggrs: ["ma1w"] },
-        { name: "WU-Duesseldorf-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] },
-        { name: "WU-Duesseldorf-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"] },        
-        { name: "WU-Duesseldorf-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"] },
-        { name: "WU-Duesseldorf-WU-pressure", ts: [0], aggrs: ["ma1w"] },
+        { name: "WU-Duesseldorf-WU-windspeed", ts: [0], aggrs: ["ma1w"], type: "sensor" },
+        { name: "WU-Duesseldorf-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" },
+        { name: "WU-Duesseldorf-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"], type: "sensor" },
+        { name: "WU-Duesseldorf-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"], type: "sensor" },
+        { name: "WU-Duesseldorf-WU-pressure", ts: [0], aggrs: ["ma1w"], type: "sensor" },
         
-        { name: "WU-Wiesbaden-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"] },
-        { name: "WU-Wiesbaden-WU-windspeed", ts: [0], aggrs: ["ma1w"] },
-        { name: "WU-Wiesbaden-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"] },
-        { name: "WU-Wiesbaden-WU-pressure", ts: [0], aggrs: ["ma1w"] },
-        { name: "WU-Wiesbaden-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] },
+        { name: "WU-Wiesbaden-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"], type: "sensor" },
+        { name: "WU-Wiesbaden-WU-windspeed", ts: [0], aggrs: ["ma1w"], type: "sensor" },
+        { name: "WU-Wiesbaden-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"], type: "sensor" },
+        { name: "WU-Wiesbaden-WU-pressure", ts: [0], aggrs: ["ma1w"], type: "sensor" },
+        { name: "WU-Wiesbaden-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" },
         
-        { name: "WU-Hanover-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"] },
-        { name: "WU-Hanover-WU-windspeed", ts: [0], aggrs: ["ma1w"] },
-        { name: "WU-Hanover-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"] },
-        { name: "WU-Hanover-WU-pressure", ts: [0], aggrs: ["ma1w"] },
-        { name: "WU-Hanover-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] },
+        { name: "WU-Hanover-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"], type: "sensor" },
+        { name: "WU-Hanover-WU-windspeed", ts: [0], aggrs: ["ma1w"], type: "sensor" },
+        { name: "WU-Hanover-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"], type: "sensor" },
+        { name: "WU-Hanover-WU-pressure", ts: [0], aggrs: ["ma1w"], type: "sensor" },
+        { name: "WU-Hanover-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" },
         
-        { name: "WU-Laage-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"] },
-        { name: "WU-Laage-WU-windspeed", ts: [0], aggrs: ["ma1w"] },
-        { name: "WU-Laage-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"] },
-        { name: "WU-Laage-WU-pressure", ts: [0], aggrs: ["ma1w"] },
-        { name: "WU-Laage-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] },
+        { name: "WU-Laage-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"], type: "sensor" },
+        { name: "WU-Laage-WU-windspeed", ts: [0], aggrs: ["ma1w"], type: "sensor" },
+        { name: "WU-Laage-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"], type: "sensor" },
+        { name: "WU-Laage-WU-pressure", ts: [0], aggrs: ["ma1w"], type: "sensor" },
+        { name: "WU-Laage-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" },
         
-        { name: "WU-BerlinTegel-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"] },
-        { name: "WU-BerlinTegel-WU-windspeed", ts: [0], aggrs: ["ma1w"] },
-        { name: "WU-BerlinTegel-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"] },
-        { name: "WU-BerlinTegel-WU-pressure", ts: [0], aggrs: ["ma1w"] },
-        { name: "WU-BerlinTegel-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"] }            
+        { name: "WU-BerlinTegel-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"], type: "sensor" },
+        { name: "WU-BerlinTegel-WU-windspeed", ts: [0], aggrs: ["ma1w"], type: "sensor" },
+        { name: "WU-BerlinTegel-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"], type: "sensor" },
+        { name: "WU-BerlinTegel-WU-pressure", ts: [0], aggrs: ["ma1w"], type: "sensor" },
+        { name: "WU-BerlinTegel-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" }
         
     ],
     prediction: { name: "Electricity-Price", ts: 24 },
@@ -114,9 +115,49 @@ http.onGet("load-model-data", function (request, response) {
 });
 
 http.onGet("evaluate", function (request, response) {
+    goldenrule(runModel, 0.00001, 5, 0.001, 200);
+});
+
+http.onGet("run", function(request, response) {
+    var C = parseFloat(request.args.C[0]);
+   
+    str = runModel([C]);
+    response.send(str);
+});
+
+function goldenrule(func, min, max, tol, nmax) {
+    var n = 1;
+    var amse = runModel([min]);
+    var bmse = runModel([max]);
+
+    var a = min;
+    var b = max;
+
+    var phi = (1 + Math.sqrt(5)) / 2; // golden ratio
+
+    while ((n < nmax) && (((b - a) / 2) > tol)) {
+        x1 = b - (b - a) / phi;
+        x2 = a + (b - a) / phi;
+        console.log("x1 = " + x1 + ";x2 = " + x2);
+
+        x1mse = func([x1]);
+        x2mse = func([x2]);
+
+        if (x1mse > x2mse) {
+            a = x1;
+        } else {
+            b = x2;
+        }
+    }
+
+    console.log("a = " + a + "; b = " + b);
+    console.log("Estimated minimizer: " + (a + b) / 2);     
+}
+
+function runModel(parameters) {
     // resample store start is at 3:00:00 + 6 is first noon
     // init modeling conditions
-    var startoffset = 6 + 2 * 24;  // starting at noon 
+    var startoffset = 6 + 3 * 24;  // starting at noon 
     var offset = startoffset;
 
     // source store        
@@ -150,10 +191,11 @@ http.onGet("evaluate", function (request, response) {
     
     // linear algebra
     console.log("Initialize linreg");
-    // var linreg = analytics.newRecLinReg({ "dim": ftrSpace.dim, "forgetFact": 1.0 }); 
-    var ridreg = new analytics.ridgeRegression(0.1, ftrSpace.dim, 2* 365);
+    var linreg = analytics.newRecLinReg({ "dim": ftrSpace.dim, "forgetFact": 1.0 }); 
+    // var ridreg = new analytics.ridgeRegression(0.1, ftrSpace.dim, 2* 365);
     // var NN = analytics.newNN({ "layout": [ftrSpace.dim, 12, 4, 3, 1] });    
-    // var svmR = svmrModule.newSvmRegression(ftrSpace.dim, { "c": 20, "eps": 1E-4, "maxTime": 60, "maxIterations": 1000000, batchSize: 365 }, 365);
+    // var svmR = svmrModule.newSvmRegression(ftrSpace.dim, { "c": parameters[0], "eps": 0.04, "maxTime": 5, "maxIterations": 1000000, batchSize: 365 }, 365);
+    // var movAvr = baselinePredictors.newMovAvrVal(30);
     // var ht = analytics.newHoeffdingTree(htConf, modelConf.params);
 
     var prediction = -1;
@@ -175,10 +217,11 @@ http.onGet("evaluate", function (request, response) {
         // printj(rec);
         // la.printFeatVec(vec, ftrSpace);
         console.log("Make prediction");
-        // prediction = linreg.predict(vec);
-        prediction = ridreg.predict(vec);
+        prediction = linreg.predict(vec);
+        // prediction = ridreg.predict(vec);
         // predictions = NN.predict(vec); prediction = predictions[0];
         // prediction = svmR.predict(vec);
+        // prediction = movAvr.predict();
         /*
         var vecArr = [];
         for (var rowN = 0; rowN < vec.length; rowN++) {
@@ -191,23 +234,24 @@ http.onGet("evaluate", function (request, response) {
         console.log("Get learn value");
         var value = model.getLearnValue(modelConf, resampledStore, offset);
         // NN - value normalization
-        // value = value / modelConf.normFactor;
+        value = value / modelConf.normFactor;
         // outVec = linalg.newVec([value]);
         // console.log("Value: " + value)
 
         // learn        
         console.log("Learn");
-        // linreg.learn(vec, value);        
-        ridreg.addupdate(vec, value);
+        linreg.learn(vec, value);        
+        // ridreg.addupdate(vec, value);
         // NN.learn(vec, outVec);
-        // learn every 30 samples
+        // learn every N samples        
         /*
         if ((i % 365 != 0) && (i != 0)) svmR.add(vec, value);
         else {
             // la.printFeatVec(vec, ftrSpace);
             svmR.learn(vec, value);
-        }
+        } 
         */
+        // movAvr.update(value);
         // ht.process([], vecArr, value);
         // NN renormalization
         value = value * modelConf.normFactor;
@@ -227,7 +271,7 @@ http.onGet("evaluate", function (request, response) {
         }        
         
         diff = prediction - value;
-        console.log(i + " - diff: " + diff);
+        console.log(offset + " - diff: " + diff);
         str += i + ";" + value + ";" + prediction + "\n";
         // move 1 day forward
         offset += 24;        
@@ -235,14 +279,17 @@ http.onGet("evaluate", function (request, response) {
 
     // ht.exportModel({ "file": "./sandbox/ht/epex.gv", "type": "DOT" });
 
-    str = "me;mae;mse;rmse;rsquared\n" + me.getError() + ";" + mae.getError() + ";" + mse.getError() + ";" + rmse.getError() + ";" + rsquare.getError() + "\n\n\n" + str;
-    
+    var errors = "me;mae;mse;rmse;rsquared\n" + me.getError() + ";" + mae.getError() + ";" + mse.getError() + ";" + rmse.getError() + ";" + rsquare.getError() + "\n\n\n";
+    str = errors + str;
+
+    console.log(errors);
+
     str = str.replace(/\./g, ",");
     // create feature vector
     // http.jsonp(request, response, pError);
-    response.send(str);
-
-});
+    return str;
+    return mse.getError();
+};
 
 
 
