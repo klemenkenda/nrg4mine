@@ -48,11 +48,30 @@ http.onGet("get-nodes", function (request, response) {
         for (var j = 0; j < recSSet.length; j++) {
             if (recSSet[j].NodeId == i) {
                 jj++;
+
+                var sensorname = recSSet[j].Name;
+                var measurementStoreStr = "M" + nameFriendly(String(sensorname));
+                measurementStore = qm.store(measurementStoreStr);
+                var startDate, endDate, val;
+
+                if (measurementStore != null) {
+                    startDate = measurementStore.first.Date;
+                    endDate = measurementStore.last.Date;
+                    val = measurementStore.last.Val;
+                } else {
+                    startDate = "0000-00-00";
+                    endDate = "0000-00-00";
+                    val = -999.999;
+                }
+
                 if (jj != 1) str += ',\n';
                 str += '      {\n';
                 str += '        "Name":"' + recSSet[j].Name + '",\n';
                 str += '        "Phenomenon":"' + recTSet[recSSet[j].TypeId].Phenomena + '",\n';
-                str += '        "UoM":"' + recTSet[recSSet[j].TypeId].UoM + '"\n';
+                str += '        "UoM":"' + recTSet[recSSet[j].TypeId].UoM + '",\n';
+                str += '        "StartDate":"' + startDate + '",\n';
+                str += '        "EndDate":"' + endDate + '",\n';
+                str += '        "Val":"' + val + '"\n';
                 str += '      }';
             }
         }
@@ -620,7 +639,7 @@ function addMeasurement(data) {
 
             // check if the measurement is old
             if ((measurementStore.length < 1) || (measurement.Timestamp.substr(0, 19) > measurementStore[measurementStore.length - 1].Time.string.substr(0, 19))) {
-                console.say("OK" + measurement.Timestamp + " : " + measurementStore[measurementStore.length - 1].Time.string);
+                // console.say("OK" + measurement.Timestamp + " : " + measurementStore[measurementStore.length - 1].Time.string);
                 str += measurement.Timestamp + "#Type=" + typeid + "\n";;
 
                 var measurementJSON = '{ "Val": ' + measurement.Val + ', "Time": "' + measurement.Timestamp + '", "Date": "' + measurement.Date + '"}';
