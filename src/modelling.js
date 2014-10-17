@@ -24,11 +24,16 @@ require("config.js");
 modelConf = {
     id: 1,
     name: "EPEX00h",
+    master: true,
+    storename: "EPEX",
+    dataminerurl: "http://localhost:9889/enstream/push-sync-stores",    
+    callbackurl: "http://localhost:9888/modelling/",
     timestamp: "Time",
     sensors: [        
         
-        { name: "Electricity-Price", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"], type: "sensor" },        
-        { name: "Electricity-Quantity", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"], type: "sensor" },
+        /* sensor features */
+        { name: "spot-ger-energy-price", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"], type: "sensor" },
+        { name: "spot-ger-total-energy", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"], type: "sensor" },
 
         { name: "WU-Duesseldorf-WU-windspeed", ts: [0], aggrs: ["ma1w"], type: "sensor" },
         { name: "WU-Duesseldorf-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" },
@@ -47,10 +52,10 @@ modelConf = {
         { name: "WU-Hanover-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"], type: "sensor" },
         { name: "WU-Hanover-WU-pressure", ts: [0], aggrs: ["ma1w"], type: "sensor" },
         { name: "WU-Hanover-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" },
-        
-        { name: "WU-Laage-WU-temperature", ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"], type: "sensor" },
-        { name: "WU-Laage-WU-windspeed", ts: [0], aggrs: ["ma1w"], type: "sensor" },
-        { name: "WU-Laage-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"], type: "sensor" },
+                
+        { name: "WU-Laage-WU-temperature",  ts: [0], aggrs: ["ma1w", "min1w", "max1w", "var1m"], type: "sensor" },
+        { name: "WU-Laage-WU-windspeed", ts: [0], aggrs: ["ma1w"], type: "sensor" },        
+        { name: "WU-Laage-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"], type: "sensor" },        
         { name: "WU-Laage-WU-pressure", ts: [0], aggrs: ["ma1w"], type: "sensor" },
         { name: "WU-Laage-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" },
         
@@ -58,11 +63,50 @@ modelConf = {
         { name: "WU-BerlinTegel-WU-windspeed", ts: [0], aggrs: ["ma1w"], type: "sensor" },
         { name: "WU-BerlinTegel-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"], type: "sensor" },
         { name: "WU-BerlinTegel-WU-pressure", ts: [0], aggrs: ["ma1w"], type: "sensor" },
-        { name: "WU-BerlinTegel-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" }
+        { name: "WU-BerlinTegel-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" },
+
+        /* weather forecast */
+        { name: "FIO-Berlin-FIO-temperature", ts: [24], type: "prediction" },
+        { name: "FIO-Berlin-FIO-humidity", ts: [24], type: "prediction" },
+        { name: "FIO-Berlin-FIO-windSpeed", ts: [24], type: "prediction" },
+        { name: "FIO-Berlin-FIO-windBearing", ts: [24], type: "prediction" },
+        { name: "FIO-Berlin-FIO-cloudCover", ts: [24], type: "prediction" },
+
+        { name: "FIO-Laage-FIO-temperature", ts: [24], type: "prediction" },
+        { name: "FIO-Laage-FIO-humidity", ts: [24], type: "prediction" },
+        { name: "FIO-Laage-FIO-windSpeed", ts: [24], type: "prediction" },
+        { name: "FIO-Laage-FIO-windBearing", ts: [24], type: "prediction" },
+        { name: "FIO-Laage-FIO-cloudCover", ts: [24], type: "prediction" },
         
+        { name: "FIO-Duesseldorf-FIO-temperature", ts: [24], type: "prediction" },
+        { name: "FIO-Duesseldorf-FIO-humidity", ts: [24], type: "prediction" },
+        { name: "FIO-Duesseldorf-FIO-windSpeed", ts: [24], type: "prediction" },
+        { name: "FIO-Duesseldorf-FIO-windBearing", ts: [24], type: "prediction" },
+        { name: "FIO-Duesseldorf-FIO-cloudCover", ts: [24], type: "prediction" },
+
+        { name: "FIO-Hannover-FIO-temperature", ts: [24], type: "prediction" },
+        { name: "FIO-Hannover-FIO-humidity", ts: [24], type: "prediction" },
+        { name: "FIO-Hannover-FIO-windSpeed", ts: [24], type: "prediction" },
+        { name: "FIO-Hannover-FIO-windBearing", ts: [24], type: "prediction" },
+        { name: "FIO-Hannover-FIO-cloudCover", ts: [24], type: "prediction" },
+
+        { name: "FIO-Kiel-FIO-temperature", ts: [24], type: "prediction" },
+        { name: "FIO-Kiel-FIO-humidity", ts: [24], type: "prediction" },
+        { name: "FIO-Kiel-FIO-windSpeed", ts: [24], type: "prediction" },
+        { name: "FIO-Kiel-FIO-windBearing", ts: [24], type: "prediction" },
+        { name: "FIO-Kiel-FIO-cloudCover", ts: [24], type: "prediction" },
+
+        /* static features */
+        { name: "dayAfterHolidayAachen", ts: [24], aggrs: [], type: "feature" },
+        { name: "dayBeforeHolidayAachen", ts: [24], aggrs: [], type: "feature" },
+        { name: "holidayAachen", ts: [24], aggrs: [], type: "feature" },
+        { name: "dayOfWeek", ts: [24], aggrs: [], type: "feature" },
+        { name: "dayOfYear", ts: [24], aggrs: [], type: "feature" },
+        { name: "monthOfYear", ts: [24], aggrs: [], type: "feature" },
+        { name: "weekEnd", ts: [24], aggrs: [], type: "feature" }
     ],
     prediction: { name: "Electricity-Price", ts: 24 },
-    method: "linreg",
+    method: "linreg", // linreg, svmr, ridgereg, nn, ht, movavr
     params: {
         "gracePeriod": 2,
         "splitConfidence": 1e-4,
@@ -76,53 +120,32 @@ modelConf = {
         "attrDiscretization": "bst"
     },
     normFactor: 200,
-    resampleint: 1 * 60 * 60 * 1000,
-    lastTs: 0
+    resampleint: 1 * 60 * 60 * 1000
 };
 
 
+var model1 = model.newTSModel(modelConf);
+
 // make the merger & resampler & corresponding stores
 http.onGet("init", function (request, response) {    
-    // init empty stores if no data is yet in ... 
-    model.makeStores(modelConf);
+    model1.initialize();    
 
-    // get merger conf
-    var mergerJSON = model.getMergerConf(modelConf);
-    console.log(JSON.stringify(mergerJSON));   
-
-    // get store conf
-    var mergerStoreDef = model.getMergedStoreDef(mergerJSON, "");
-    var mergerResampledStoreDef = model.getMergedStoreDef(mergerJSON, "R");
-
-    // create out/resampled stores
-    var mergedStore = qm.createStore([mergerStoreDef]);
-    qm.createStore([mergerResampledStoreDef]);
-
-    // create merger aggregate
-    qm.newStreamAggr(mergerJSON);    
-
-    // attach resampler to the merger
-    var resampledAggrDef = model.getResampledAggrDef(mergerJSON, modelConf);
-    mergedStore.addStreamAggr(resampledAggrDef);
-
-    http.jsonp(request, response, resampledAggrDef);
+    http.jsonp(request, response, "OK");
 });
 
-http.onGet("load-model-data", function (request, response) {
-    var url = model.getFetchURL(modelConf, "2010-01-01", "2011-01-01", 0);
+http.onGet("update-data", function (request, response) {
+    var url = model1.loadData(1000);
 
+    response.send(url);
+});
+
+http.onGet("initial-load", function (request, response) {
+    var url = model1.loadData(100000000);
     response.send(url);
 });
 
 http.onGet("evaluate", function (request, response) {
     goldenrule(runModel, 0.00001, 5, 0.001, 200);
-});
-
-http.onGet("run", function(request, response) {
-    var C = parseFloat(request.args.C[0]);
-   
-    str = runModel([C]);
-    response.send(str);
 });
 
 function goldenrule(func, min, max, tol, nmax) {
@@ -151,10 +174,43 @@ function goldenrule(func, min, max, tol, nmax) {
     }
 
     console.log("a = " + a + "; b = " + b);
-    console.log("Estimated minimizer: " + (a + b) / 2);     
+    console.log("Estimated minimizer: " + (a + b) / 2);
 }
 
+
+
+http.onGet("run", function(request, response) {
+    var C = parseFloat(request.args.C[0]);
+   
+    str = runModel([C]);
+    response.send(str);
+});
+
 function runModel(parameters) {
+    // source stores        
+    console.log("Linking source data stores ...")    
+    var sensorRStore = qm.store("R" + modelConf.name);
+    var predictionStore = qm.store("P" + modelConf.name);
+    var featuresStore = qm.store("F" + modelConf.name);
+
+    // create feature space
+    console.log("Create feature space ...");
+    var fsConf = model.getFtrSpaceDef(modelConf);
+    var ftrSpace = analytics.newFeatureSpace(fsConf);
+    console.log("FtrSp dim:" + ftrSpace.dim);
+
+    // normalization - learning    
+    console.log("Learning normalization parameters ...");
+    for (i = 0; i < N; i++) {
+        var rec = model.getRecord(modelConf, resampledStore, i * 24 + offset);
+        ftrSpace = ftrSpace.updateRecord(rec);
+    }
+
+
+}
+
+
+function runModelOld(parameters) {
     // resample store start is at 3:00:00 + 6 is first noon
     // init modeling conditions
     var startoffset = 6 + 3 * 24;  // starting at noon 
@@ -222,13 +278,12 @@ function runModel(parameters) {
         // predictions = NN.predict(vec); prediction = predictions[0];
         // prediction = svmR.predict(vec);
         // prediction = movAvr.predict();
-        /*
-        var vecArr = [];
-        for (var rowN = 0; rowN < vec.length; rowN++) {
-            vecArr.push(vec.at(rowN));
-        }
-        prediction = ht.predict([], vecArr);
-        */
+        
+        // var vecArr = [];
+        // for (var rowN = 0; rowN < vec.length; rowN++) {
+        //     vecArr.push(vec.at(rowN));
+        // }
+        // prediction = ht.predict([], vecArr);        
 
         // get value
         console.log("Get learn value");
@@ -244,13 +299,13 @@ function runModel(parameters) {
         // ridreg.addupdate(vec, value);
         // NN.learn(vec, outVec);
         // learn every N samples        
-        /*
-        if ((i % 365 != 0) && (i != 0)) svmR.add(vec, value);
-        else {
+        
+        // if ((i % 365 != 0) && (i != 0)) svmR.add(vec, value);
+        // else {
             // la.printFeatVec(vec, ftrSpace);
-            svmR.learn(vec, value);
-        } 
-        */
+        //     svmR.learn(vec, value);
+        // } 
+        
         // movAvr.update(value);
         // ht.process([], vecArr, value);
         // NN renormalization
@@ -290,8 +345,6 @@ function runModel(parameters) {
     return str;
     return mse.getError();
 };
-
-
 
 
 
@@ -762,8 +815,80 @@ http.onGet("add", function (request, response) {
             store = qm.createStore([aggregateStoreDef]);
         }
     };
-    store.add(JSON.parse(request.args.data));
-    response.send("OK");
+
+    var record = JSON.parse(request.args.data);
+    var responseStr;
+
+    if ((store.empty) || (record.Time > store.last.Time.string)) {
+        store.add(record);
+        responseStr = "OK";
+        console.log(responseStr);
+    } else {
+        responseStr = "Time problem: " + record.Time + " - store time: " + store.last.Time.string;
+        console.log(responseStr);
+    }
+    response.send(responseStr);
+});
+
+// ---------------------------------------------------------------------------
+// FUNCTION: onGet - update
+// DESCRIPTION: Generic store update function
+// ---------------------------------------------------------------------------
+http.onGet("update", function (request, response) {
+
+    var storeStr = String(request.args.store);
+    var store = qm.store(storeStr);
+
+    // if the store does not exits
+    if (store == null) {
+        // M-sensorname --> measurements
+        if (storeStr.substr(0, 1) == "M") {
+            store = qm.createStore([{
+                "name": storeStr,
+                "fields": [
+                    { "name": "Time", "type": "datetime" },
+                    { "name": "Date", "type": "string" },
+                    { "name": "Val", "type": "float" }
+                ],
+                "joins": [],
+                "keys": [
+                    { "field": "Date", "type": "value", "sort": "string", "vocabulary": "date_vocabulary" }
+                ]
+            }]);
+        } else if (storeStr.substr(0, 1) == "A") {
+            var aggregateStoreDef = getAggregateStoreStructure(storeStr);
+            store = qm.createStore([aggregateStoreDef]);
+        }
+    };
+
+    var record = JSON.parse(request.args.data);
+    var responseStr;
+
+    // check if the measurement is new
+    if ((store.empty) || (record.Time > store.last.Time.string)) {
+        store.add(record);
+        responseStr = "OK";
+    } else {
+        // else make an overwrite
+        responseStr = "Overwrite.";        
+        var i = 0;
+        var updated = false;
+        while ((i < 1000) && (updated == false) && (store.length - i > 0)) {
+            i++;
+            console.log("R: " + record.Time + ", S: " + store[store.length - i].Time.string);
+            if (store[store.length - i].Time.string.substr(0, 19) == record.Time.substr(0, 19)) {
+                store[store.length - i].Val = record.Val;
+                console.say("Value updated at " + store[store.length - i].Time.string + " with " + record.Val);
+                updated = true;
+            }
+        }
+        if (updated == false) {
+            console.say("Error - could not find/reach measurement to update!" + store[store.length - 1].Time.string + "; measurement = " + record.Time);
+            responseStr += ("Could not find/reach measurement to update!\n");
+        }
+    }
+
+    response.send(responseStr);
 });
 
 // ---------------------------------------------------------------------------

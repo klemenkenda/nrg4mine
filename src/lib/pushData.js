@@ -8,9 +8,14 @@
 // HISTORY:
 // ---------------------------------------------------------------------------
 
-exports.pushData = function (inStores, startDate, endDate, remoteURL, lastTs) {
+exports.pushData = function (inStores, startDate, remoteURL, lastTs) {
     var loadStores = inStores;
     var lastTimeStamp = lastTs;
+
+    console.log("Ts - " + lastTs);
+    console.log("Date - " + startDate);
+    console.log("URL - " + remoteURL);
+
 
     // Find and returns first datetime field from store
     getDateTimeFieldName = function (store) {
@@ -41,6 +46,8 @@ exports.pushData = function (inStores, startDate, endDate, remoteURL, lastTs) {
 
         for (var ii = 0; ii < currRecIdxs.length; ii++) {
             var currRec = loadRSets[ii][currRecIdxs[ii]];
+            // it only pushes until the first table is empty (?check!)
+            // which is a feature, as data is loaded unsynchronously
             if (currRec == null) continue;
             if (currRec[dateTimeFields[ii]].timestamp < min) {
                 min = currRec[dateTimeFields[ii]].timestamp;
@@ -52,11 +59,11 @@ exports.pushData = function (inStores, startDate, endDate, remoteURL, lastTs) {
     };
 
     // prepare time-windowed RSet from the store
-    prepareRSet = function (store, startDateStr, endDateStr, lastTs) {
+    prepareRSet = function (store, startDateStr, lastTs) {
         // get measurements
         var rs = qm.search({
             "$from": store.name,
-            "Date": [{ "$gt": String(startDateStr) }, { "$lt": String(endDateStr) }]
+            "Date": [{ "$gt": String(startDateStr) }]
         });
 
         return rs;
@@ -83,8 +90,10 @@ exports.pushData = function (inStores, startDate, endDate, remoteURL, lastTs) {
     var dateTimeFields = getDateTimeFieldNames(loadStores);    
     // prepare recordsets
     loadRSets = prepareRSets(inStores, startDate, endDate);
+    var i = 0;
 
-    while (true) {
+    while (i < 10) {
+        i++;
         var lowestRecIdx = findLowestRecIdx(currRecIdxs); 
         if (lowestRecIdx == -1) break;        
 
@@ -95,9 +104,12 @@ exports.pushData = function (inStores, startDate, endDate, remoteURL, lastTs) {
         var val = rec.toJSON(true);
         delete val.$id;        
 
-        // making request to remote instance of QMiner
-        var url = remoteURL + '?store=' + loadStores[lowestRecIdx].store + '&data=' + JSON.stringify(val);
-        http.get(url);
+        // making request to remote instance of QMiner     
+        if (val.timestamp >= lastTimeStamp) {
+            var url = remoteURL + '?store=' + loadStores[lowestRecIdx].store + '&data=' + JSON.stringify(val);
+            console.log(url);
+            http.get(url);
+        }
 
         currRecIdxs[lowestRecIdx]++
     }
