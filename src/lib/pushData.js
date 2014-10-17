@@ -8,7 +8,11 @@
 // HISTORY:
 // ---------------------------------------------------------------------------
 
+<<<<<<< HEAD
 exports.pushData = function (inStores, startDate, remoteURL, lastTs, maxitems) {
+=======
+exports.pushData = function (inStores, startDate, remoteURL, lastTs) {
+>>>>>>> 1535ef7ceaf758e696c71bdd2fb46839ed2b645f
     var loadStores = inStores;
     var lastTimeStamp = lastTs;
 
@@ -89,6 +93,7 @@ exports.pushData = function (inStores, startDate, remoteURL, lastTs, maxitems) {
     // detect date-time fields
     var dateTimeFields = getDateTimeFieldNames(loadStores);    
     // prepare recordsets
+<<<<<<< HEAD
     loadRSets = prepareRSets(inStores, startDate, lastTs);
 
     var i = 0;  // counter of insertions
@@ -96,6 +101,13 @@ exports.pushData = function (inStores, startDate, remoteURL, lastTs, maxitems) {
 
     while ((i < maxitems) && (n < 10000000)) {
         n++;
+=======
+    loadRSets = prepareRSets(inStores, startDate, endDate);
+    var i = 0;
+
+    while (i < 10) {
+        i++;
+>>>>>>> 1535ef7ceaf758e696c71bdd2fb46839ed2b645f
         var lowestRecIdx = findLowestRecIdx(currRecIdxs); 
         if (lowestRecIdx == -1) break;        
 
@@ -105,11 +117,19 @@ exports.pushData = function (inStores, startDate, remoteURL, lastTs, maxitems) {
         // console.log(" - " + currRecIdxs[lowestRecIdx]);
         var val = rec.toJSON(true);
         delete val.$id;        
+<<<<<<< HEAD
         
         // making request to remote instance of QMiner             
         if (lastTimeStamp > lastTs) {
             i++;
             var url = remoteURL + '?store=' + loadStores[lowestRecIdx].name + '&data=' + JSON.stringify(val);
+=======
+
+        // making request to remote instance of QMiner     
+        if (val.timestamp >= lastTimeStamp) {
+            var url = remoteURL + '?store=' + loadStores[lowestRecIdx].store + '&data=' + JSON.stringify(val);
+            console.log(url);
+>>>>>>> 1535ef7ceaf758e696c71bdd2fb46839ed2b645f
             http.get(url);
         }
 
