@@ -54,7 +54,7 @@ http.onGet("get-nodes", function (request, response) {
                 measurementStore = qm.store(measurementStoreStr);
                 var startDate, endDate, val;
 
-                if (measurementStore != null) {
+                if ((measurementStore != null) && (measurementStore.empty == false)) {
                     startDate = measurementStore.first.Date;
                     endDate = measurementStore.last.Date;
                     val = measurementStore.last.Val;
@@ -528,6 +528,7 @@ http.onGet("add-measurement-update", function (request, response) {
 // DESCRIPTION: Implementation of add measurement.
 // ---------------------------------------------------------------------------
 function addMeasurement(data) {
+    sendMeasurementToCEP(data);
     // init str
     var str = "";
 
@@ -914,28 +915,38 @@ function getAggregateStoreStructure(aggregateStoreStr) {
 http.onGet("push-sync-stores", function (request, response) {
     var sensorListStr = request.args.sid[0];
     var sensorListV = sensorListStr.split(",");
-    var startDateStr = String(request.args.startdate);
-    var endDateStr = String(request.args.enddate);
     var remoteURL = String(request.args.remoteURL);
-    var lastTs = request.args.lastts;
+    var lastTs = parseInt(request.args.lastts);
+    var prediction = 0;
+    var maxitems = 1000;
+    if (parseInt(request.args.prediction) == 1) prediction = 1;
+    if (parseInt(request.args.maxitems) > 0) maxitems = parseInt(request.args.maxitems);
+
+    // convert TS to QM date for query (-1 day)
+    var lastTm = tm.fromUnixTimestamp(lastTs - 24 * 60 * 60);
+    var startDateStr = lastTm.dateString;
+    // console.log(startDateStr);
 
     // create dummy dates for indexing
-    addDate(startDateStr, endDateStr);
+    addDate(startDateStr, startDateStr);
 
     // prepare inStores
     var inStores = [];
 
     sensorListV.forEach(function (sensorName) {
-        var measurementStoreStr = "M" + nameFriendly(sensorName);
+        var measurementStoreStr = "M" + nameFriendly(sensorName);        
         var measurementStore = qm.store(measurementStoreStr);
-        var aggregateStoreStr = "A" + nameFriendly(sensorName);
-        var aggregateStore = qm.store(aggregateStoreStr);
         inStores.push(measurementStore);
-        inStores.push(aggregateStore);
+        if (prediction != 1) {
+            var aggregateStoreStr = "A" + nameFriendly(sensorName);
+            var aggregateStore = qm.store(aggregateStoreStr);
+            inStores.push(aggregateStore);
+        }                
     });
-
+    
+    console.log("Start pushing ...");
     // call the push routine
-    var lastTimeStamp = push.pushData(inStores, startDateStr, endDateStr, remoteURL, lastTs);
+    var lastTimeStamp = push.pushData(inStores, startDateStr, remoteURL, lastTs);
 
     // output last valid timestamp
     http.jsonp(request, response, lastTimeStamp);
@@ -1033,3 +1044,6 @@ http.onGet("records", function (request, response) {
     response.send(str);
 });
 
+function sendMeasurementToCEP(data) {
+    http.post("http://atena.ijs.si:9080/Esper-Services/api/QMinerJSONInputService", "application/json", JSON.stringify(data));
+}
