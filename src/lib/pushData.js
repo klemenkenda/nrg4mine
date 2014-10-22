@@ -15,6 +15,7 @@ exports.pushData = function (inStores, startDate, remoteURL, lastTs, maxitems) {
     console.log("Ts - " + lastTs);
     console.log("Date - " + startDate);
     console.log("URL - " + remoteURL);
+    console.log("Max items - " + maxitems);
 
 
     // Find and returns first datetime field from store
@@ -107,8 +108,9 @@ exports.pushData = function (inStores, startDate, remoteURL, lastTs, maxitems) {
         delete val.$id;        
         
         // making request to remote instance of QMiner             
-        if (lastTimeStamp > lastTs) {
+        if (lastTimeStamp >= lastTs) {
             i++;
+            console.log(lastTimeStamp);
             var url = remoteURL + '?store=' + loadStores[lowestRecIdx].name + '&data=' + JSON.stringify(val);
             http.get(url);
         }
