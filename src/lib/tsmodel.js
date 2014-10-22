@@ -51,6 +51,79 @@ exports.newTSModel = function (conf) {
     this.pMergedStore;      // weather predictions merged store
     this.fMergedStore;      // additional features merged store
 
+    this.ftrSpace;          // feature space
+
+    this.rec;               // current record we are working on
+    this.vec;               // feature vector, constructed from record
+    this.linreg;            // linear regression
+
+
+    /* modelling function */
+
+    // METHOD: predict()
+    // Make the prediction
+    this.predict = function (offset) {
+        // general stuff
+        var rec;
+        console.say("Getting record for offset: " + offset)
+        rec = this.getRecord(offset);
+        console.say("Creating feature vector ...");        
+        console.start();
+        this.createFtrVec();        
+        var val = -1;
+        console.say("Making the model prediction ...");
+        switch (this.conf.method) {
+            case "linreg":
+                val = linreg.predict(vec);
+                break;
+        }
+
+        return val;
+    }
+
+    // METHOD: createFtrVec()
+    this.createFtrVec = function () {
+        this.vec = this.ftrSpace.ftrVec(this.rec);
+    }
+
+    // METHOD: initModel()
+    // Init model from configuration
+    this.initModel = function () {
+        switch (this.conf.method) {
+            case "linreg":
+                console.log("Initializing linreg ...")
+                this.linreg = analytics.newRecLinReg({ "dim": this.ftrSpace.dim, "forgetFact": 1.0 });
+                break;
+        }
+    }
+
+    // METHOD: initFtrSpace()
+    // Init feature space
+    this.initFtrSpace = function () {
+        model.getFtrSpaceDef();
+        this.ftrSpace = analytics.newFeatureSpace(this.ftrDef);
+        console.log("FtrSp dim: " + this.ftrSpace.dim);
+        console.start();
+    };
+
+    // METHOD: findNextOffset(offset)
+    // Finds next suitable offset from the current offset up
+    this.findNextOffset = function (offset) {
+        i = 1;
+        while (i + offset < this.mergedStore.length) {
+            if (this.mergedStore[i + offset].Time.hour == this.conf.type.startHour) {
+                console.log("Matched next time: " + this.mergedStore[i + offset].Time.string);
+                offset += i;
+                break;
+            }
+            i++;
+        }
+
+        return offset;
+    }    
+
+    /* configuration & loading functions */
+
     // METHOD: getMergerConf - sensors
     // Calculates, stores and returns merger stream aggregate configuration for the model configuration
     this.getMergerConf = function () {
@@ -248,16 +321,20 @@ exports.newTSModel = function (conf) {
     exports.getFtrSpaceDef = function () {
         this.ftrDef = [];
         // time
+        // multinomial is not good
         var fieldJSON = { type: "multinomial", source: "R" + this.conf.storename, field: "Time", datetime: true };
         // ftrDef.push(fieldJSON);
 
         for (i = 0; i < this.conf.sensors.length; i++) {
             // get resampled store field name
             var outFieldName = nameFriendly(this.conf.sensors[i].name) + "XVal";
+            var pre = "R"; // for sensors
+            if (this.conf.sensors[i].type == "prediction") pre = "P";
+            if (this.conf.sensors[i].type == "feature") pre = "F";
             // get all the needed values
             for (j = 0; j < this.conf.sensors[i].ts.length; j++) {
                 var reloffset = this.conf.sensors[i].ts[j];
-                var fieldJSON = { type: "numeric", source: { "store": "R" + this.conf.storename }, field: outFieldName + j, normalize: true };
+                var fieldJSON = { type: "numeric", source: { "store": pre + this.conf.storename }, field: outFieldName + j, normalize: true };
                 this.ftrDef.push(fieldJSON);
             }
             // add aggregate fields
@@ -265,7 +342,7 @@ exports.newTSModel = function (conf) {
                 for (j = 0; j < this.conf.sensors[i].aggrs.length; j++) {
                     var aggrName = this.conf.sensors[i].aggrs[j];
                     var outFieldName = nameFriendly(this.conf.sensors[i].name) + "X" + aggrName;
-                    var fieldJSON = { type: "numeric", source: { "store": "R" + this.conf.storename }, field: outFieldName, normalize: true };
+                    var fieldJSON = { type: "numeric", source: { "store": pre + this.conf.storename }, field: outFieldName, normalize: true };
                     this.ftrDef.push(fieldJSON);
                 }
             }
@@ -312,11 +389,48 @@ exports.newTSModel = function (conf) {
         return value;
     }
 
+    this.getOffset = function (time0, store) {
+        // get last offset time for a store
+        var lastTm = store.last.Time;
+        // calculate initial timestamps
+        var lastTs = 0;
+        time0Ts = time0.timestamp;
+        var i = 0;
+        var offset = 0;
+        while ((lastTs != time0Ts) && (i < 1000)) {
+            i++;
+            // get number of hours
+            lastTs = lastTm.timestamp;
+            hours = Math.round((lastTs - time0Ts) / 3600);
+            offset += hours;
+            console.say("O: " + offset + ", Hours: " + hours + " Time: " + lastTm.string);
+            if (offset >= 0) {
+                lastTm = store[store.length - 1 - offset].Time;
+                lastTs = lastTm.timestamp;
+            };
+        };
+        return offset;
+    };
+
     // METHOD: getRecord
     // Get record for specified offset.
-    this.getRecord = function (store, offset) {
+    this.getRecord = function (offset) {
+        // define stores
+        resampledStore = this.resampledStore;
+        predictionStore = this.pMergedStore;
+        featuresStore = this.fMergedStore;
+
         // get original record with blanks for previous values
-        var rec = store[offset];        
+        var rec = {};
+        // resampledStore[offset];
+        // extract current record time
+        var time0 = resampledStore[offset].Time;
+        // find time pointers in the stores
+        var sensorOffset = offset;
+        var predictionOffset = this.getOffset(time0, predictionStore);
+        var featuresOffset = this.getOffset(time0, featuresStore);
+        console.log(featuresOffset);
+        console.start();
 
         // find out time
         // get offset in predictions
@@ -324,25 +438,47 @@ exports.newTSModel = function (conf) {
 
         // get vector of values    
         for (i = 0; i < this.conf.sensors.length; i++) {
+            // distinguish type of sensor
+            switch (this.conf.sensors[i].type) {
+                case "sensor":
+                    store = resampledStore;
+                    offset = sensorOffset;
+                    break;
+                case "prediciton":
+                    store = predictionStore;
+                    offset = predictionOffset;
+                    break;
+                case "feature":
+                    store = featuresStore;
+                    offset = featuresOffset;
+                    break;
+            };
             // get resampled store field name
             var outFieldName = nameFriendly(this.conf.sensors[i].name) + "XVal";
             // get all the needed values
             for (j = 0; j < this.conf.sensors[i].ts.length; j++) {
                 var reloffset = this.conf.sensors[i].ts[j];
+                console.say("O, R: " + offset + ", " + reloffset + ", " + outFieldName);
                 rec[outFieldName + j] = (store[offset + reloffset][outFieldName + "0"]);
             }
             // add aggregate fields
-            for (j = 0; j < this.conf.sensors[i].aggrs.length; j++) {
-                var aggrName = this.conf.sensors[i].aggrs[j];
-                var outFieldName = nameFriendly(this.conf.sensors[i].name) + "X" + aggrName;
-                rec[outFieldName] = store[offset][outFieldName];
-            }
-        };
-
+            if (this.conf.sensors[i].type != "prediction") {
+                for (j = 0; j < this.conf.sensors[i].aggrs.length; j++) {
+                    var aggrName = this.conf.sensors[i].aggrs[j];
+                    var outFieldName = nameFriendly(this.conf.sensors[i].name) + "X" + aggrName;
+                    rec[outFieldName] = store[offset][outFieldName];
+                }
+            };
+        };        
+        // update object record
+        this.rec = rec;
+        console.start();
+        // return the record
         return rec;
     };    
 
     this.loadData = function (maxitems) {
+        scope = this;
         
         // SENSORS
         var url = this.conf.dataminerurl + "?sid=";
@@ -359,7 +495,7 @@ exports.newTSModel = function (conf) {
         url += "&lastts=" + this.lastSensorTs;
         url += "&maxitems=" + maxitems;
         console.log(url);
-        scope = this;
+        
         http.getStr(url, function(str) {
             console.log("done - sensors: " + str);
             scope.lastSensorTs = parseInt(str) - 1;        
@@ -390,7 +526,7 @@ exports.newTSModel = function (conf) {
             console.log(str + "!");
             scope.str = str;            
         });
-
+        
         // WEATHER PREDICTIONS        
         url = this.conf.dataminerurl + "?sid=";
         // update url from model definition
@@ -411,11 +547,22 @@ exports.newTSModel = function (conf) {
             console.log("done - predictions: " + str);
             scope.lastPredictionTs = parseInt(str) - 1;            
         }, function (str) {
-            console.log(str + "!");
-            scope.str = str;
+            console.log(str + "!");            
         });
 
         return url;
+    }
+
+    // METHOD: updateTimestamps
+    // Updates last timestamps from the last records in the stores
+    this.updateTimestamps = function () {
+        this.lastSensorTs = this.mergedStore.last.Time.timestamp;
+        this.lastFeatureTs = this.fMergedStore.last.Time.timestamp;
+        this.lastPredictionTs = this.pMergedStore.last.Time.timestamp;
+
+        console.log("Sensor: " + lastSensorTs);
+        console.log("Feature: " + lastFeatureTs);
+        console.log("Prediction: " + lastPredictionTs);
     }
 
     // METHOD: initialize
@@ -471,14 +618,17 @@ exports.newTSModel = function (conf) {
         }
     }
 
+    // METHOD. updateStoreHandlers
+    // Updates handles to the 4 stores (3x merged + 1x resampled)
     this.updateStoreHandlers = function () {
+        console.log("Updating store handlers ...")
         this.resampledStore = qm.store("R" + this.conf.storename);
         this.mergedStore = qm.store(this.conf.storename);
         this.pMergedStore = qm.store("P" + this.conf.storename);
         this.fMergedStore = qm.store("F" + this.conf.storename);
     }
 
-    return this;
+    return this;    
 }
 
 // About this module

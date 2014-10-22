@@ -26,9 +26,13 @@ modelConf = {
     name: "EPEX00h",
     master: true,
     storename: "EPEX",
-    dataminerurl: "http://localhost:9889/enstream/push-sync-stores",    
-    callbackurl: "http://localhost:9888/modelling/",
+    dataminerurl: "http://localhost:9789/enstream/push-sync-stores",    
+    callbackurl: "http://localhost:9788/modelling/",
     timestamp: "Time",
+    type : {
+        scheduled: "daily",
+        startHour: 11
+    },
     sensors: [        
         
         /* sensor features */
@@ -105,9 +109,10 @@ modelConf = {
         { name: "monthOfYear", ts: [24], aggrs: [], type: "feature" },
         { name: "weekEnd", ts: [24], aggrs: [], type: "feature" }
     ],
-    prediction: { name: "Electricity-Price", ts: 24 },
+    prediction: { name: "spot-ger-energy-price", ts: 24 },
     method: "linreg", // linreg, svmr, ridgereg, nn, ht, movavr
     params: {
+        /* for Hoefding tree testing */
         "gracePeriod": 2,
         "splitConfidence": 1e-4,
         "tieBreaking": 1e-14,
@@ -142,6 +147,12 @@ http.onGet("update-data", function (request, response) {
 http.onGet("initial-load", function (request, response) {
     var url = model1.loadData(100000000);
     response.send(url);
+});
+
+http.onGet("update-timestamps", function (request, response) {
+    var response = model1.updateTimestamps();
+
+    response.send("OK");
 });
 
 http.onGet("evaluate", function (request, response) {
@@ -182,31 +193,55 @@ function goldenrule(func, min, max, tol, nmax) {
 http.onGet("run", function(request, response) {
     var C = parseFloat(request.args.C[0]);
    
-    str = runModel([C]);
+    str = runModelOffline(model1, [C]);
     response.send(str);
 });
 
-function runModel(parameters) {
+function runModelOffline(model, parameters) {
     // source stores        
     console.log("Linking source data stores ...")    
-    var sensorRStore = qm.store("R" + modelConf.name);
-    var predictionStore = qm.store("P" + modelConf.name);
-    var featuresStore = qm.store("F" + modelConf.name);
+    model.updateStoreHandlers();
 
-    // create feature space
+    // create feature space    
     console.log("Create feature space ...");
-    var fsConf = model.getFtrSpaceDef(modelConf);
-    var ftrSpace = analytics.newFeatureSpace(fsConf);
-    console.log("FtrSp dim:" + ftrSpace.dim);
+    model.initFtrSpace();
+    
+    
 
+    /*
     // normalization - learning    
     console.log("Learning normalization parameters ...");
     for (i = 0; i < N; i++) {
         var rec = model.getRecord(modelConf, resampledStore, i * 24 + offset);
         ftrSpace = ftrSpace.updateRecord(rec);
     }
+    */
 
+    // initialize models
+    console.log("Initialize mdoel");
+    model.initModel();    
 
+    // initialize offsets
+    var offset = 200;
+    var oldOffset = -1;
+    // finds next suitable offset
+    var offset = model.findNextOffset(offset);
+    
+    // repeat until OK
+    while (offset != oldOffset) {
+        // perform modelling on existing offset
+        var val = model.predict(offset);
+        console.log(val);
+
+        // learn
+        // get learning value
+
+        // calculate new offset
+        oldOffset = offset;
+        offset = model.findNextOffset(offset);
+    }
+
+    return offset;
 }
 
 
@@ -872,15 +907,26 @@ http.onGet("update", function (request, response) {
         // else make an overwrite
         responseStr = "Overwrite.";        
         var i = 0;
+        var offset = 1;
+        // extract record time
+        recTm = tm.parse(record.Time);
+        currTm = store.last.Time;
+
         var updated = false;
         while ((i < 1000) && (updated == false) && (store.length - i > 0)) {
             i++;
-            console.log("R: " + record.Time + ", S: " + store[store.length - i].Time.string);
-            if (store[store.length - i].Time.string.substr(0, 19) == record.Time.substr(0, 19)) {
-                store[store.length - i].Val = record.Val;
-                console.say("Value updated at " + store[store.length - i].Time.string + " with " + record.Val);
+            // get predicted offset - only working for hourly prediction granularity
+            offset += Math.round((currTm.timestamp - recTm.timestamp) / 3600);
+            if (offset < 1) offset = 1;
+
+            console.log("I: " + offset + ", " + i);
+            console.log("R: " + record.Time + ", S: " + store[store.length - offset].Time.string);
+            if (store[store.length - offset].Time.string.substr(0, 19) == record.Time.substr(0, 19)) {
+                store[store.length - offset].Val = record.Val;
+                console.say("Value updated at " + store[store.length - offset].Time.string + " with " + record.Val);
                 updated = true;
             }
+            currTm = store[store.length - offset].Time;
         }
         if (updated == false) {
             console.say("Error - could not find/reach measurement to update!" + store[store.length - 1].Time.string + "; measurement = " + record.Time);
