@@ -410,6 +410,8 @@ http.onGet("n-get-current-aggregates", function (req, response) {
 function getNCurrentAggregates(measurementStore) {
     var data = {};
 
+    if (measurementStore == null) return data;
+
     data["Time"] = measurementStore.getStreamAggr("tick").val.Time;
     data["Date"] = data["Time"].substring(0, 10);
 
