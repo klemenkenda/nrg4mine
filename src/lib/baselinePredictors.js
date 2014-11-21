@@ -45,7 +45,7 @@ exports.newMovAvrVal = function (n) {
             return this.avr;
         }
     }
-    return new createAvr();
+    return new createAvr(n);
 }
 
 // About this module

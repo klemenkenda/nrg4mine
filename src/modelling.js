@@ -18,12 +18,13 @@ var analytics = require("analytics.js");
 var evaluation = require("evaluation.js");
 var svmrModule = require("svmRegression.js");
 var baselinePredictors = require("baselinePredictors.js");
+var viz = require('visualization.js');
 require("config.js");
 
 // definition of the model
-modelConf = {
+var modelConf = {
     id: 1,
-    name: "EPEX00h",
+    name: "ALL",    // meta-store (!) - sensor selection
     master: true,
     storename: "EPEX",
     dataminerurl: "http://localhost:9789/enstream/push-sync-stores",    
@@ -34,10 +35,11 @@ modelConf = {
         startHour: 11
     },
     sensors: [        
-        
+       
         /* sensor features */
-        { name: "spot-ger-energy-price", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"], type: "sensor" },
+        { name: "spot-ger-energy-price", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"], type: "sensor" },        
         { name: "spot-ger-total-energy", ts: [0, -24, -48], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"], type: "sensor" },
+
 
         { name: "WU-Duesseldorf-WU-windspeed", ts: [0], aggrs: ["ma1w"], type: "sensor" },
         { name: "WU-Duesseldorf-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" },
@@ -67,9 +69,11 @@ modelConf = {
         { name: "WU-BerlinTegel-WU-windspeed", ts: [0], aggrs: ["ma1w"], type: "sensor" },
         { name: "WU-BerlinTegel-WU-humidity", ts: [0], aggrs: ["ma1w", "ma1m", "max1w", "var1w"], type: "sensor" },
         { name: "WU-BerlinTegel-WU-pressure", ts: [0], aggrs: ["ma1w"], type: "sensor" },
-        { name: "WU-BerlinTegel-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" },
+        { name: "WU-BerlinTegel-WU-cloudcover", ts: [0], aggrs: ["ma1w", "var1w"], type: "sensor" },       
+
 
         /* weather forecast */
+
         { name: "FIO-Berlin-FIO-temperature", ts: [24], type: "prediction" },
         { name: "FIO-Berlin-FIO-humidity", ts: [24], type: "prediction" },
         { name: "FIO-Berlin-FIO-windSpeed", ts: [24], type: "prediction" },
@@ -101,21 +105,23 @@ modelConf = {
         { name: "FIO-Kiel-FIO-cloudCover", ts: [24], type: "prediction" },
 
         /* static features */
+
         { name: "dayAfterHolidayAachen", ts: [24], aggrs: [], type: "feature" },
         { name: "dayBeforeHolidayAachen", ts: [24], aggrs: [], type: "feature" },
         { name: "holidayAachen", ts: [24], aggrs: [], type: "feature" },
         { name: "dayOfWeek", ts: [24], aggrs: [], type: "feature" },
         { name: "dayOfYear", ts: [24], aggrs: [], type: "feature" },
         { name: "monthOfYear", ts: [24], aggrs: [], type: "feature" },
-        { name: "weekEnd", ts: [24], aggrs: [], type: "feature" }
+        { name: "weekEnd", ts: [24], aggrs: [], type: "feature" }        
+
     ],
-    prediction: { name: "spot-ger-energy-price", ts: 24 },
-    method: "linreg", // linreg, svmr, ridgereg, nn, ht, movavr
-    params: {
-        /* for Hoefding tree testing */
+    prediction: { name: "spot-ger-energy-price", ts: 13 },
+    method: "svmr", // linreg, svmr, ridgereg, nn, ht, movavg
+    paramsht: {
+        // Hoeffding tree
         "gracePeriod": 2,
-        "splitConfidence": 1e-4,
-        "tieBreaking": 1e-14,
+        "splitConfidence": 3e-2,
+        "tieBreaking": 1e-4,
         "driftCheck": 1000,
         "windowSize": 100000,
         "conceptDriftP": true,
@@ -124,33 +130,115 @@ modelConf = {
         "maxNodes": 60,
         "attrDiscretization": "bst"
     },
+    paramsmovavg: {
+        // moving average
+        window: 30
+    },
+    paramsnn: {
+        // neural networks
+        "layout": [-99, 5, 1], // -99 gets replaced by ftrSpace.dim
+        "tFuncIn":"linear",
+        "tFuncHidden":"tanHyper", 
+        "tFuncOut":"linear", 
+        "learnRate":0.2, 
+        "momentum":0.5 
+    },
+    paramssvmr: {
+        params: {
+            "c": 0.02,
+            "eps": 0.04,
+            "maxTime": 2,
+            "maxIterations": 1E6,
+            batchSize: 365
+        },
+        window: 365,
+        learnskip: 365
+    },
     normFactor: 200,
+    normNum: 365,
     resampleint: 1 * 60 * 60 * 1000
 };
 
+/* PREPARE ALL THE MODELS */
+console.log("Preparing 24 EPEX models ...");
+var modelEPEX = [];
+for (var i = 0; i < 24; i++) {
+    // change 23 to 13 after SVM tests
+    modelEPEX[i] = new model.TSModel(prepareModel(modelConf, 13 + i));        
+}
 
-var model1 = model.newTSModel(modelConf);
+// evaluation structure
+EvalStructure = function () {
+    this.me;
+    this.mae;
+    this.mse;
+    this.rmse;
+    this.r2;
+
+    this.init = function() {
+        this.me = evaluation.newMeanError();
+        this.mae = evaluation.newMeanAbsoluteError();
+        this.mse = evaluation.newMeanSquareError();
+        this.rmse = evaluation.newRootMeanSquareError();
+        this.r2 = evaluation.newRSquareScore();
+    }
+
+    this.update = function (trueval, prediction) {
+        this.me.update(trueval, prediction);
+        this.mae.update(trueval, prediction);
+        this.mse.update(trueval, prediction);
+        this.rmse.update(trueval, prediction);
+        this.r2.update(trueval, prediction);
+    }
+
+    this.init();
+}
+
+// general model evaluation
+console.log("Creating evaluation structures ...");
+var modelEvals = [];
+for (var i = 0; i < 24; i++) {
+    modelEvals[i] = new EvalStructure();
+}
+
+// general model evaluation
+modelEval = new EvalStructure();
+
+function prepareModel(modelConf, x) {
+    // cloning objects in JS is ... painfully ugly
+    var conf = JSON.parse(JSON.stringify(modelConf));
+    conf.prediction.ts = x;
+    conf.master = false;
+
+    for (var i = 0; i < conf.sensors.length; i++) {
+        if ((conf.sensors[i].type == "prediction") || (conf.sensors[i].type == "feature")) {
+            conf.sensors[i].ts[0] = x;
+        }
+    }
+
+    return conf;
+}
 
 // make the merger & resampler & corresponding stores
 http.onGet("init", function (request, response) {    
-    model1.initialize();    
+    modelEPEX[0].initialize();    
 
     http.jsonp(request, response, "OK");
 });
 
 http.onGet("update-data", function (request, response) {
-    var url = model1.loadData(1000);
+    var url = modelEPEX[0].loadData(1000);
 
     response.send(url);
 });
 
 http.onGet("initial-load", function (request, response) {
-    var url = model1.loadData(100000000);
+    var url = modelEPEX[0].loadData(100000000);
     response.send(url);
 });
 
 http.onGet("update-timestamps", function (request, response) {
-    var response = model1.updateTimestamps();
+    var response = modelEPEX[0].updateTimestamps();
 
     response.send("OK");
 });
@@ -193,55 +281,150 @@ function goldenrule(func, min, max, tol, nmax) {
 http.onGet("run", function(request, response) {
     var C = parseFloat(request.args.C[0]);
    
-    str = runModelOffline(model1, [C]);
-    response.send(str);
+    buffer = runModelsOffline(modelEPEX, [C]);
+    http.jsonp(request, response, viz.highchartsTSConverter(buffer));
 });
 
-function runModelOffline(model, parameters) {
-    // source stores        
-    console.log("Linking source data stores ...")    
-    model.updateStoreHandlers();
-
-    // create feature space    
-    console.log("Create feature space ...");
-    model.initFtrSpace();
-    
-    
-
-    /*
-    // normalization - learning    
-    console.log("Learning normalization parameters ...");
-    for (i = 0; i < N; i++) {
-        var rec = model.getRecord(modelConf, resampledStore, i * 24 + offset);
-        ftrSpace = ftrSpace.updateRecord(rec);
-    }
-    */
-
-    // initialize models
-    console.log("Initialize mdoel");
-    model.initModel();    
-
+function runModelsOffline(models, parameters) {
     // initialize offsets
     var offset = 200;
     var oldOffset = -1;
-    // finds next suitable offset
-    var offset = model.findNextOffset(offset);
-    
-    // repeat until OK
-    while (offset != oldOffset) {
-        // perform modelling on existing offset
-        var val = model.predict(offset);
-        console.log(val);
 
-        // learn
-        // get learning value
+    // evaluation offsets
+    var learnOffset = 3 * 365 * 24;
+    var learnEndOffset = 4.4 * 365 * 24;
+    // learnEndOffset = 400;  // fast finish for debugging
+    var drawOffset = 4 * 365 * 24;
+
+    for (var i = 0; i < models.length; i++) {
+        // source stores        
+        console.log("Linking source data stores (" + i + ") ...")
+        models[i].updateStoreHandlers();
+        models[i].createMetaStore();
+
+        console.log(models[i].metaMergedStore.name);
+
+        // create feature space    
+        console.log("Create feature space ...");
+        models[i].initFtrSpace();                
+        
+        // normalization - learning    
+        var normOffset = models[0].findNextOffset(offset);
+
+        // initialize models
+        console.log("Initialize model");
+        models[i].initModel();
+    };
+
+    console.log("Learning normalization parameters ...");
+    for (var j = 0; j < models[0].conf.normNum; j++) {
+        normOffset = models[0].findNextOffset(normOffset);        
+        var rec = models[0].getRecord(normOffset + j);
+        for (var i = 0; i < models.length; i++) {
+            console.log("i = ", i);
+            // ftrSpace = ...
+            models[i].ftrSpace.updateRecord(rec);
+        }
+    }
+
+    // finds next suitable offset
+    offset = models[0].findNextOffset(offset);
+    
+    // buffer to draw
+    var drawBuffer = [];
+
+    // repeat until OK
+    while ((offset != oldOffset) && (offset < learnEndOffset)) {
+        for (var i = 0; i < models.length; i++) {
+            // perform modelling on existing offset
+            var val = models[i].predict(offset);
+            console.log(val);
+
+            // learn
+            models[i].learn(offset);
+            var predictionTime = models[i].rec.Time.add(models[i].conf.prediction.ts, "hour");
+            // console.say("Prediction time: " + predictionTime.string + ", " + models[i].conf.prediction.ts + ", " + i);
+
+            if (offset > learnOffset) {
+                // calculate errors
+                modelEvals[i].update(models[i].value, val);
+                modelEval.update(models[i].value, val);
+            }
+
+            // draw graph
+            if (offset > drawOffset)
+                drawBuffer.push({ Prediction: { Val: val, Time: predictionTime.string }, Value: { Val: models[i].value, Time: predictionTime.string } });
+        }
 
         // calculate new offset
         oldOffset = offset;
-        offset = model.findNextOffset(offset);
+        offset = models[0].findNextOffset(offset);
     }
 
-    return offset;
+    // make visualizations
+    // Offline (no server is needed)
+    console.say("Saving chart HTML");    
+    viz.drawHighChartsTimeSeries(viz.highchartsTSConverter(drawBuffer), "plot.html", {
+        title: { text: "EPEX: prediction vs. true value" }, subtitle: { text: "" }, chart: { zoomType: "x" }, tooltip: {
+            headerFormat: '<b>{series.name}</b><br>',
+            pointFormat: '{point.x:%e. %b. %Y %I:%M:%S}: {point.y:.2f} '
+        },
+    });
+    console.say("Done");
+
+    // export and print evaluation data
+    var errors = "me;mae;mse;rmse;rsquared\n" + modelEval.me.getError() + ";" + modelEval.mae.getError() + ";" + modelEval.mse.getError() + ";" + modelEval.rmse.getError() + ";" + modelEval.r2.getError() + "\n\n\n";    
+
+    var str = "me;mae;mse;rmse;rsquared\n"
+    for (i = 0; i < models.length; i++) {
+        str += modelEvals[i].me.getError() + ";" + modelEvals[i].mae.getError() + ";" + modelEvals[i].mse.getError() + ";" + modelEvals[i].rmse.getError() + ";" + modelEvals[i].r2.getError() + "\n";
+    };
+
+    str = errors + str;
+
+    // convert . to , for Excel - Slovenian settings
+    str = str.replace(/\./g, ",");
+
+    console.say(str);
+    fout = fs.openWrite("results.csv");
+    fout.write(str);
+    fout.close();
+
+    // save feature space
+    var header = "";
+    fout = fs.openWrite("ftrspace");
+    var json = models[0].ftrDef;
+    for (i = 0; i < json.length; i++) {
+        header = header + json[i].field + ";";
+    }
+    header = header + "\n";
+    fout.write(header);
+    fout.close();
+
+    // save model
+/*
+    // linear regression
+    fout = fs.openWrite("weights.txt");
+    fout.write(header);
+    for (i = 0; i < models.length; i++) {
+        var vec = models[i].linreg.weights;
+        vec.print();        
+        for (j = 0; j < vec.length; j++)  {
+            fout.write(vec[j] + ";");
+        };
+        fout.write("\n");
+    }
+    fout.close();
+*/
+
+/*
+    // hoefding tree
+    for (i = 0; i < models.length; i++) {
+        models[i].ht.exportModel({ "file": "./sandbox/ht-" + i + ".gv", "type": "DOT" });
+    }
+*/
+
+    return drawBuffer;
 }
 
 
@@ -342,7 +525,7 @@ function runModelOld(parameters) {
         // } 
         
         // movAvr.update(value);
-        // ht.process([], vecArr, value);
+        ht.process([], vecArr, value);
         // NN renormalization
         value = value * modelConf.normFactor;
         prediction = prediction * modelConf.normFactor;

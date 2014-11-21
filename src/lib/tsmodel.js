@@ -31,7 +31,7 @@
 //#- `model = evaluation.newTSModel()` -- create new time-series model.
 //#   - `mc = model.getMergerConf()` -- Returns stream merger configuration, derived from model configuration.
 //#   - `msd = model.getMergeStoreDef(pre)` -- Returns merged store definition, derived from merger configuration `mc`, `pre` is set to either "" (for merger store) or to "R" for resampled merger store.
-exports.newTSModel = function (conf) {        
+exports.TSModel = function (conf) {        
     this.conf = conf;       // model configuration
     
     this.lastSensorTs = 24 * 60 * 60 + 10;       // last timestamp of pulled sensor data
@@ -50,15 +50,57 @@ exports.newTSModel = function (conf) {
     this.resampledStore;    // resampled store
     this.pMergedStore;      // weather predictions merged store
     this.fMergedStore;      // additional features merged store
+    this.metaMergedStore;   // store holding all meta records
+    this.predictionStore;   // store for predictions
 
     this.ftrSpace;          // feature space
 
     this.rec;               // current record we are working on
     this.vec;               // feature vector, constructed from record
-    this.linreg;            // linear regression
+    this.vecHtArr;          // Hoeffding tree vector --> array
 
+    this.linreg;            // linear regression (method)
+    this.movavg;            // moving average (method)
+    this.ht;                // Hoeffding tree (method)
+    this.nn;                // neural networks (method)
+    this.svmr;              // SVM regression (method)
+    this.svmrcounter;       // SVMR counter
+    this.rr;                // ridge regression (method)
+
+    this.value;             // current true learned value;
+    this.prediction;        // prediction
 
     /* modelling function */
+
+    // METHOD: predict()
+    // Make the prediction
+    this.learn = function (offset) {
+        // we expect feature vector to be set from before
+        this.value = this.getLearnValue(this.resampledStore, offset);
+        switch (this.conf.method) {
+            case "movavg":
+                this.movavg.update(this.value);
+                break
+            case "linreg":
+                this.linreg.learn(this.vec, this.value);
+                break;
+            case "ht":               
+                this.ht.process([], this.vecHtArr, this.value);
+                break;
+            case "nn":
+                var outVec = linalg.newVec([this.value]);
+                this.nn.learn(this.vec, outVec);
+                break;
+            case "svmr":
+                this.svmrcounter++;
+                if (this.svmrcounter % this.conf.paramssvmr.learnskip == 0) {
+                    this.svmr.learn(this.vec, this.value / this.conf.normFactor);
+                } else {
+                    this.svmr.add(this.vec, this.value / this.conf.normFactor)
+                }
+                break;
+        }
+    }
 
     // METHOD: predict()
     // Make the prediction
@@ -68,15 +110,33 @@ exports.newTSModel = function (conf) {
         console.say("Getting record for offset: " + offset)
         rec = this.getRecord(offset);
         console.say("Creating feature vector ...");        
-        console.start();
         this.createFtrVec();        
         var val = -1;
         console.say("Making the model prediction ...");
         switch (this.conf.method) {
+            case "movavg":
+                val = this.movavg.predict();
+                break;
             case "linreg":
-                val = linreg.predict(vec);
+                val = this.linreg.predict(this.vec);
+                break;
+            case "ht":
+                this.vecHtArr = [];
+                for (var rowN = 0; rowN < this.vec.length; rowN++) {
+                    this.vecHtArr.push(this.vec.at(rowN));
+                }
+                val = this.ht.predict([], this.vecHtArr);  
+                break;
+            case "nn":
+                val = this.nn.predict(this.vec)[0];
+                break;
+            case "svmr":                
+                val = this.svmr.predict(this.vec) * this.conf.normFactor;
                 break;
         }
+
+        // save prediction to the model object
+        this.prediction = val;        
 
         return val;
     }
@@ -90,9 +150,28 @@ exports.newTSModel = function (conf) {
     // Init model from configuration
     this.initModel = function () {
         switch (this.conf.method) {
+            case "movavg":
+                console.log("Initializing moving average");
+                this.movavg = baselinePredictors.newMovAvrVal(this.conf.paramsmovavg.window);
+                break;
             case "linreg":
                 console.log("Initializing linreg ...")
-                this.linreg = analytics.newRecLinReg({ "dim": this.ftrSpace.dim, "forgetFact": 1.0 });
+                this.linreg = analytics.newRecLinReg({ "dim": this.ftrSpace.dim, "forgetFact": 1.0 });                
+                break;
+            case "ht":
+                console.log("Initializing Hoeffding tree ...");
+                var htConf = this.getHtFtrSpaceDef(modelConf);
+                this.ht = analytics.newHoeffdingTree(htConf, this.conf.paramsht);
+                break;
+            case "nn":
+                console.log("Initializing NN ...")
+                this.conf.paramsnn.layout[0] = this.ftrSpace.dim;
+                this.nn = analytics.newNN(this.conf.paramsnn);
+                break;
+            case "svmr":
+                console.log("Initializing SVMR ...");
+                this.svmr = svmrModule.newSvmRegression(this.ftrSpace.dim, this.conf.paramssvmr.params, this.conf.paramssvmr.window);
+                this.svmrcounter = 0;
                 break;
         }
     }
@@ -100,10 +179,9 @@ exports.newTSModel = function (conf) {
     // METHOD: initFtrSpace()
     // Init feature space
     this.initFtrSpace = function () {
-        model.getFtrSpaceDef();
+        this.getFtrSpaceDef();
         this.ftrSpace = analytics.newFeatureSpace(this.ftrDef);
-        console.log("FtrSp dim: " + this.ftrSpace.dim);
-        console.start();
+        console.log("FtrSp dim: " + this.ftrSpace.dim);        
     };
 
     // METHOD: findNextOffset(offset)
@@ -123,6 +201,44 @@ exports.newTSModel = function (conf) {
     }    
 
     /* configuration & loading functions */
+
+    // METHOD: getMetaMergerConf - sensors
+    // Calculates, stores and returns meta merger stream aggregate configuration for the model configuration.
+    // Meta merger is not really used; it is a concept, explaining the joining of sensors, predictions and 
+    // additional features.
+    this.getMetaMergerConf = function () {
+        this.mergerConf = {
+            type: "stmerger", name: this.conf.storename + "merger",
+            outStore: "M" + this.conf.name + this.conf.storename, createStore: false,
+            timestamp: 'Time',
+            fields: []
+        };
+
+        // update merger conf from model definition
+        for (i = 0; i < this.conf.sensors.length; i++) {
+
+            var sourceMStr = "M" + nameFriendly(this.conf.sensors[i].name);
+            var sourceAStr = "A" + nameFriendly(this.conf.sensors[i].name);
+            // add measurement fields                
+            for (j = 0; j < this.conf.sensors[i].ts.length; j++) {
+                var outFieldName = nameFriendly(this.conf.sensors[i].name) + "XVal" + j;
+                var fieldJSON = { source: sourceMStr, inField: 'Val', outField: outFieldName, interpolation: 'previous', timestamp: 'Time' };
+                this.mergerConf.fields.push(fieldJSON);
+            }
+
+            // add aggregate fields
+            if (this.conf.sensors[i].type != "prediction") {
+                for (j = 0; j < this.conf.sensors[i].aggrs.length; j++) {
+                    var aggrName = this.conf.sensors[i].aggrs[j];
+                    var outFieldName = nameFriendly(this.conf.sensors[i].name) + "X" + aggrName;
+                    fieldJSON = { source: sourceAStr, inField: aggrName, outField: outFieldName, interpolation: 'previous', timestamp: 'Time' };
+                    this.mergerConf.fields.push(fieldJSON);
+                }
+            }
+        }
+
+        return this.mergerConf;
+    }
 
     // METHOD: getMergerConf - sensors
     // Calculates, stores and returns merger stream aggregate configuration for the model configuration
@@ -318,19 +434,17 @@ exports.newTSModel = function (conf) {
 
     // METHOD: getFtrSpaceDef
     // Calculate ftrSpaceDefinition from model configuration.
-    exports.getFtrSpaceDef = function () {
+    this.getFtrSpaceDef = function () {
         this.ftrDef = [];
         // time
         // multinomial is not good
-        var fieldJSON = { type: "multinomial", source: "R" + this.conf.storename, field: "Time", datetime: true };
+        // var fieldJSON = { type: "multinomial", source: "R" + this.conf.storename, field: "Time", datetime: true };
         // ftrDef.push(fieldJSON);
 
         for (i = 0; i < this.conf.sensors.length; i++) {
             // get resampled store field name
             var outFieldName = nameFriendly(this.conf.sensors[i].name) + "XVal";
-            var pre = "R"; // for sensors
-            if (this.conf.sensors[i].type == "prediction") pre = "P";
-            if (this.conf.sensors[i].type == "feature") pre = "F";
+            var pre = "M" + this.conf.name; // for sensors            
             // get all the needed values
             for (j = 0; j < this.conf.sensors[i].ts.length; j++) {
                 var reloffset = this.conf.sensors[i].ts[j];
@@ -389,6 +503,13 @@ exports.newTSModel = function (conf) {
         return value;
     }
 
+    // METHOD: canLearn
+    // Can learn value be determined for the current offset
+    this.canLearn = function (store, offset) {
+        if (offset + this.conf.prediction.ts > store.length) return false;
+        return true;
+    }
+
     this.getOffset = function (time0, store) {
         // get last offset time for a store
         var lastTm = store.last.Time;
@@ -403,34 +524,32 @@ exports.newTSModel = function (conf) {
             lastTs = lastTm.timestamp;
             hours = Math.round((lastTs - time0Ts) / 3600);
             offset += hours;
-            console.say("O: " + offset + ", Hours: " + hours + " Time: " + lastTm.string);
             if (offset >= 0) {
                 lastTm = store[store.length - 1 - offset].Time;
                 lastTs = lastTm.timestamp;
             };
         };
-        return offset;
+        return store.length - 1 - offset;
     };
 
     // METHOD: getRecord
     // Get record for specified offset.
     this.getRecord = function (offset) {
+        var origoffset = offset;
         // define stores
         resampledStore = this.resampledStore;
         predictionStore = this.pMergedStore;
         featuresStore = this.fMergedStore;
+        metaStore = this.metaMergedStore;
 
         // get original record with blanks for previous values
         var rec = {};
-        // resampledStore[offset];
         // extract current record time
         var time0 = resampledStore[offset].Time;
         // find time pointers in the stores
         var sensorOffset = offset;
         var predictionOffset = this.getOffset(time0, predictionStore);
         var featuresOffset = this.getOffset(time0, featuresStore);
-        console.log(featuresOffset);
-        console.start();
 
         // find out time
         // get offset in predictions
@@ -444,7 +563,7 @@ exports.newTSModel = function (conf) {
                     store = resampledStore;
                     offset = sensorOffset;
                     break;
-                case "prediciton":
+                case "prediction":
                     store = predictionStore;
                     offset = predictionOffset;
                     break;
@@ -458,8 +577,7 @@ exports.newTSModel = function (conf) {
             // get all the needed values
             for (j = 0; j < this.conf.sensors[i].ts.length; j++) {
                 var reloffset = this.conf.sensors[i].ts[j];
-                console.say("O, R: " + offset + ", " + reloffset + ", " + outFieldName);
-                rec[outFieldName + j] = (store[offset + reloffset][outFieldName + "0"]);
+                rec[outFieldName + j] = (store[(offset + reloffset)][outFieldName + "0"]);
             }
             // add aggregate fields
             if (this.conf.sensors[i].type != "prediction") {
@@ -469,12 +587,16 @@ exports.newTSModel = function (conf) {
                     rec[outFieldName] = store[offset][outFieldName];
                 }
             };
-        };        
+        };
+
         // update object record
-        this.rec = rec;
-        console.start();
+        rec.Time = resampledStore[origoffset].Time.string;
+        rec.PredictionTime = rec.Time;
+        metaStore.add(rec); 
+        this.rec = metaStore.last;        
+
         // return the record
-        return rec;
+        return this.rec;
     };    
 
     this.loadData = function (maxitems) {
@@ -570,18 +692,20 @@ exports.newTSModel = function (conf) {
     this.initialize = function () {
         // init empty stores if no data is yet in ... 
         this.makeStores();
+        this.makePredictionStore();
 
         // get merger conf
         var mergerJSON = this.getMergerConf();
         var pMergerJSON = this.getPMergerConf();
         var fMergerJSON = this.getFMergerConf();
-        
+        var metaMergerJSON = this.getMetaMergerConf();
         
         // get store conf
         var mergerStoreDef = this.getMergedStoreDef("", mergerJSON);
-        var mergerResampledStoreDef = model.getMergedStoreDef("R", mergerJSON);
+        var mergerResampledStoreDef = this.getMergedStoreDef("R", mergerJSON);
         var pMergerStoreDef = this.getMergedStoreDef("", pMergerJSON);
         var fMergerStoreDef = this.getMergedStoreDef("", fMergerJSON);
+        var metaMergerStoreDef = this.getMergedStoreDef(this.conf.name, metaMergerJSON);
 
         // create merged store and attach merger aggregate to qm
         this.mergedStore = qm.store(mergerStoreDef.name);
@@ -616,6 +740,32 @@ exports.newTSModel = function (conf) {
             qm.createStore([fMergerStoreDef]); 
             qm.newStreamAggr(fMergerJSON);
         }
+
+        this.metaMergedStore = qm.store(metaMergerStoreDef.name);
+        if (this.metaMergedStore == null) {
+            console.log("Meta merger store");
+            qm.createStore([metaMergerStoreDef]);
+        }
+    }
+
+    // METHOD: createPredictionStore
+    // Creates store for predictions.
+    this.makePredictionStore = function () {
+        var storePJSON = {
+            "name": "Pred" + this.conf.storename,
+            "fields": [
+                { "name": "Time", "type": "datetime" },
+                { "name": "Date", "type": "string" },
+                { "name": "TimePredicted", "type": "datetime" },
+                { "name": "Val", "type": "float" },
+                { "name": "Pred", "type": "float" }
+            ],
+            "joins": [],
+            "keys": [
+                { "field": "Date", "type": "value", "sort": "string", "vocabulary": "date_vocabulary" }
+            ]
+        };
+        this.predictionStore = qm.createStore([storePJSON]);
     }
 
     // METHOD. updateStoreHandlers
@@ -625,10 +775,23 @@ exports.newTSModel = function (conf) {
         this.resampledStore = qm.store("R" + this.conf.storename);
         this.mergedStore = qm.store(this.conf.storename);
         this.pMergedStore = qm.store("P" + this.conf.storename);
-        this.fMergedStore = qm.store("F" + this.conf.storename);
+        this.fMergedStore = qm.store("F" + this.conf.storename);        
+        this.predictionStore = qm.store("Pred" + this.conf.storename);
     }
 
-    return this;    
+    // METHOD: createMetaStore
+    // Creates feature set-spefic meta-store
+    this.createMetaStore = function () {
+        var metaMergerJSON = this.getMetaMergerConf();
+        var metaMergerStoreDef = this.getMergedStoreDef("", metaMergerJSON);
+        this.metaMergedStore = qm.store(metaMergerStoreDef.name);
+        if (this.metaMergedStore == null) {
+            console.log("Creating meta merger store");
+            qm.createStore([metaMergerStoreDef]);
+        }
+        this.metaMergedStore = qm.store("M" + this.conf.name + this.conf.storename);
+    }
+    
 }
 
 // About this module
