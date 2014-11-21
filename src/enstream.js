@@ -922,7 +922,7 @@ http.onGet("push-sync-stores", function (request, response) {
     var prediction = 0;
     var maxitems = 1000;
     if (parseInt(request.args.prediction) == 1) prediction = 1;
-    if (parseInt(request.args.maxitems) > 0) maxitems = parseInt(request.args.maxitems);
+    if (parseInt(request.args.maxitems) > 0) maxitems = parseInt(request.args.maxitems);    
 
     // convert TS to QM date for query (-1 day)
     var lastTm = tm.fromUnixTimestamp(lastTs - 24 * 60 * 60);
@@ -948,7 +948,7 @@ http.onGet("push-sync-stores", function (request, response) {
     
     console.log("Start pushing ...");
     // call the push routine
-    var lastTimeStamp = push.pushData(inStores, startDateStr, remoteURL, lastTs);
+    var lastTimeStamp = push.pushData(inStores, startDateStr, remoteURL, lastTs, maxitems);
 
     // output last valid timestamp
     http.jsonp(request, response, lastTimeStamp);
