@@ -32,7 +32,7 @@ exports.newMovAvrVal = function (n) {
 
             if (this.count > this.size) {
                 this.count--;
-                newWal = this.arr.shift();
+                newVal = this.arr.shift();
                 this.sum -= newVal;
             }
 

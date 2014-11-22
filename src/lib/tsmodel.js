@@ -42,6 +42,7 @@ exports.TSModel = function (conf) {
     this.resampledConf;     // resampled store configuration
     this.pMergerConf;       // merger conf for weather predictions
     this.fMergerConf;       // merger conf for features
+    this.mMergerConf;
 
     this.ftrDef;            // feature space definition
     this.htFtrDef;          // Hoeffding tree feature space definition
@@ -188,9 +189,9 @@ exports.TSModel = function (conf) {
     // Finds next suitable offset from the current offset up
     this.findNextOffset = function (offset) {
         i = 1;
-        while (i + offset < this.mergedStore.length) {
-            if (this.mergedStore[i + offset].Time.hour == this.conf.type.startHour) {
-                console.log("Matched next time: " + this.mergedStore[i + offset].Time.string);
+        while (i + offset < this.resampledStore.length) {
+            if (this.resampledStore[i + offset].Time.hour == this.conf.type.startHour) {
+                console.log("Matched next time: " + this.resampledStore[i + offset].Time.string);
                 offset += i;
                 break;
             }
@@ -207,7 +208,7 @@ exports.TSModel = function (conf) {
     // Meta merger is not really used; it is a concept, explaining the joining of sensors, predictions and 
     // additional features.
     this.getMetaMergerConf = function () {
-        this.mergerConf = {
+        this.mMergerConf = {
             type: "stmerger", name: this.conf.storename + "merger",
             outStore: "M" + this.conf.name + this.conf.storename, createStore: false,
             timestamp: 'Time',
@@ -223,7 +224,7 @@ exports.TSModel = function (conf) {
             for (j = 0; j < this.conf.sensors[i].ts.length; j++) {
                 var outFieldName = nameFriendly(this.conf.sensors[i].name) + "XVal" + j;
                 var fieldJSON = { source: sourceMStr, inField: 'Val', outField: outFieldName, interpolation: 'previous', timestamp: 'Time' };
-                this.mergerConf.fields.push(fieldJSON);
+                this.mMergerConf.fields.push(fieldJSON);
             }
 
             // add aggregate fields
@@ -232,12 +233,12 @@ exports.TSModel = function (conf) {
                     var aggrName = this.conf.sensors[i].aggrs[j];
                     var outFieldName = nameFriendly(this.conf.sensors[i].name) + "X" + aggrName;
                     fieldJSON = { source: sourceAStr, inField: aggrName, outField: outFieldName, interpolation: 'previous', timestamp: 'Time' };
-                    this.mergerConf.fields.push(fieldJSON);
+                    this.mMergerConf.fields.push(fieldJSON);
                 }
             }
         }
 
-        return this.mergerConf;
+        return this.mMergerConf;
     }
 
     // METHOD: getMergerConf - sensors
@@ -518,7 +519,7 @@ exports.TSModel = function (conf) {
         time0Ts = time0.timestamp;
         var i = 0;
         var offset = 0;
-        while ((lastTs != time0Ts) && (i < 1000)) {
+        while ((Math.abs(lastTs - time0Ts) > 30 * 60) && (i < 1000)) {
             i++;
             // get number of hours
             lastTs = lastTm.timestamp;
@@ -529,6 +530,7 @@ exports.TSModel = function (conf) {
                 lastTs = lastTm.timestamp;
             };
         };
+        if (i == 1000) console.say("Offset not found ...");
         return store.length - 1 - offset;
     };
 
@@ -603,6 +605,9 @@ exports.TSModel = function (conf) {
         scope = this;
         
         // SENSORS
+        // TODO: sensor should be loaded last if 
+        // stream aggregate for on-line predictions is
+        // to be used (!)
         var url = this.conf.dataminerurl + "?sid=";
         // update url from model definition
         ii = 0;
@@ -704,8 +709,7 @@ exports.TSModel = function (conf) {
         var mergerStoreDef = this.getMergedStoreDef("", mergerJSON);
         var mergerResampledStoreDef = this.getMergedStoreDef("R", mergerJSON);
         var pMergerStoreDef = this.getMergedStoreDef("", pMergerJSON);
-        var fMergerStoreDef = this.getMergedStoreDef("", fMergerJSON);
-        var metaMergerStoreDef = this.getMergedStoreDef(this.conf.name, metaMergerJSON);
+        var fMergerStoreDef = this.getMergedStoreDef("", fMergerJSON);        
 
         // create merged store and attach merger aggregate to qm
         this.mergedStore = qm.store(mergerStoreDef.name);
@@ -717,12 +721,11 @@ exports.TSModel = function (conf) {
 
         // create resampled store and attach resampler to merged tore
         this.resampledStore = qm.store(mergerResampledStoreDef.name);
-        if (this.resampledStore == null) {
+        if (this.resampledStore == null) {            
             qm.createStore([mergerResampledStoreDef]);
-
             // attach resampler to the merger
             var resampledAggrDef = this.getResampledAggrDef();
-            this.mergedStore.addStreamAggr(resampledAggrDef);
+            this.mergedStore.addStreamAggr(resampledAggrDef);            
         }
 
         // create weather prediction merger store
@@ -741,11 +744,6 @@ exports.TSModel = function (conf) {
             qm.newStreamAggr(fMergerJSON);
         }
 
-        this.metaMergedStore = qm.store(metaMergerStoreDef.name);
-        if (this.metaMergedStore == null) {
-            console.log("Meta merger store");
-            qm.createStore([metaMergerStoreDef]);
-        }
     }
 
     // METHOD: createPredictionStore
