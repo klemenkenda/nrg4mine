@@ -3,3 +3,5 @@ db.rar
 *.rar
 restore
 lock
+*.exe
+*.gv

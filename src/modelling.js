@@ -24,6 +24,7 @@ require("config.js");
 
 var modelConf = {
     id: 1,
+    modelid: "svmr-arfp",
     name: "ARFP",    // meta-store (!) - sensor selection
     master: true,
     storename: "CSI",
@@ -37,7 +38,7 @@ var modelConf = {
     sensors: [
 
         /* sensor features */
-        { name: "turin-building-CSI_BUILDING-buildingconsumptionnocooling", ts: [0, -24, -48], aggrs: ["ma6h", "ma1d", "ma1w", "ma1m", "min1d", "min1w", "max1d", "max1w", "var6h", "var1d", "var1w", "var1m"], type: "sensor" },        
+        { name: "turin-building-CSI_BUILDING-buildingconsumptionnocooling", ts: [0, -24, -48], aggrs: ["ma6h", "ma1d", "ma1w", "ma1m", "min1d", "min1w", "max1d", "max1w", "var6h", "var1d", "var1w", "var1m"], type: "sensor" },
         /*
         { name: "turin-building-CSI_BUILDING-buildingcooling", ts: [0, -24, -48], aggrs: ["ma1d", "ma1w", "var1d"], type: "sensor" },
         { name: "turin-building-CSI_BUILDING-buildingtotalconsumption", ts: [0, -24, -48], aggrs: ["ma1d", "ma1w"], type: "sensor" },
@@ -47,7 +48,7 @@ var modelConf = {
 
 
         /* weather forecast */
-        
+
         { name: "FIO-Turin-FIO-temperature", ts: [24], type: "prediction" },
         { name: "FIO-Turin-FIO-humidity", ts: [24], type: "prediction" },
         { name: "FIO-Turin-FIO-windSpeed", ts: [24], type: "prediction" },
@@ -55,7 +56,7 @@ var modelConf = {
         { name: "FIO-Turin-FIO-cloudCover", ts: [24], type: "prediction" },
 
         /* static features */
-        
+
         { name: "dayOfWeek", ts: [24], aggrs: [], type: "feature" },
         { name: "dayOfYear", ts: [24], aggrs: [], type: "feature" },
         { name: "monthOfYear", ts: [24], aggrs: [], type: "feature" },
@@ -65,10 +66,10 @@ var modelConf = {
         { name: "dayBeforeHolidayTurin", ts: [24], aggrs: [], type: "feature" },
         { name: "workingHoursTurin", ts: [24], aggrs: ["sum6h", "sum1w"], type: "feature" },
         { name: "heatingSeasonTurin", ts: [24], aggrs: [], type: "feature" }
-       
+
     ],
     prediction: { name: "turin-building-CSI_BUILDING-buildingconsumptionnocooling", ts: 13 },
-    method: "nn", // linreg, svmr, ridgereg, nn, ht, movavg
+    method: "svmr", // linreg, svmr, ridgereg, nn, ht, movavg
     paramsht: {
         // Hoeffding tree
         "gracePeriod": 2,
@@ -96,8 +97,8 @@ var modelConf = {
     },
     paramssvmr: {
         params: {
-            "c": 0.03,
-            "eps": 0.02,
+            "c": 0.02,
+            "eps": 0.015,
             "maxTime": 2,
             "maxIterations": 1E6,
             batchSize: 365
@@ -109,6 +110,7 @@ var modelConf = {
     normNum: 365,
     resampleint: 1 * 60 * 60 * 1000
 };
+
 
 /* PREPARE ALL THE MODELS */
 console.log("Preparing 24 EPEX models ...");
@@ -177,6 +179,50 @@ function prepareModel(modelConf, x) {
     return conf;
 }
 
+// pushing predictions to Monitoring DB
+function successCallback (objJSON) {
+    console.say("* Push prediction success ...");
+    console.say(objJSON);
+}
+
+function errorCallback(message) {
+    console.say("* Push prediction *****FAIL****** ...");
+    console.say(message);
+}
+
+
+PPusher = function () {
+    this.JSON = [];
+    this.url = "http://83.212.123.209:8085/AggregateService/services/prediction-api/push-predictions?store=";
+
+    this.add = function (es, prediction, sid, mid, timestamp) {
+        var record = {
+            "me": es.me.getError(), "mae": es.mae.getError(), "mse": es.mse.getError(),
+            "rmse": es.rmse.getError(), "rsquared": es.r2.getError(), "value": prediction,
+            "sensorId": sid, "modelId": mid, "timestamp": timestamp
+        };
+        this.JSON.push(record);
+    }
+
+    this.push = function () {
+        console.log("Predictions pushed ...");
+        // making the request
+        var request = this.url + encodeURIComponent(JSON.stringify(this.JSON));
+
+        // writing to a file
+        fout = fs.openWrite("push-predictions.json");
+        fout.write(request);
+        fout.close();
+
+        http.getStr(request, successCallback, errorCallback);
+
+        this.JSON = [];
+    }
+
+}
+
+var pPusher = new PPusher();
+
 // make the merger & resampler & corresponding stores
 http.onGet("init", function (request, response) {    
     modelEPEX[0].initialize();    
@@ -237,23 +283,22 @@ function goldenrule(func, min, max, tol, nmax) {
 
 
 
-http.onGet("run", function(request, response) {
-    var C = parseFloat(request.args.C[0]);
-   
-    buffer = runModelsOffline(modelEPEX, [C]);
+http.onGet("run", function(request, response) {       
+    buffer = runModelsOffline(modelEPEX, [0]);
     http.jsonp(request, response, viz.highchartsTSConverter(buffer));
 });
 
 function runModelsOffline(models, parameters) {
     // initialize offsets
-    var offset = 200;
+    var offset = 2000;
     var oldOffset = -1;
 
     // evaluation offsets
     var learnOffset = 2 * 365 * 24;
     var learnEndOffset = 3.3 * 365 * 24;
     // learnEndOffset = 400;  // fast finish for debugging
-    var drawOffset = 2.3 * 365 * 24;
+    var drawOffset = 2.7 * 365 * 24;
+    var drawOffsetEnd = 3.3 * 365 * 24;
 
     for (var i = 0; i < models.length; i++) {
         // source stores        
@@ -276,7 +321,10 @@ function runModelsOffline(models, parameters) {
     };
 
     console.log("Learning normalization parameters ...");
-    if ((models[0].conf.method == "svmr") || (models[0].conf.method == "ht") || (models[0].conf.method == "nn")) {
+    if (
+         (models[0].conf.method == "svmr") || (models[0].conf.method == "ht") ||
+         (models[0].conf.method == "nn") || (models[0].conf.method == "linreg")
+        ) {
         for (var j = 0; j < models[0].conf.normNum; j++) {
             normOffset = models[0].findNextOffset(normOffset);
             var rec = models[0].getRecord(normOffset + j);
@@ -310,17 +358,24 @@ function runModelsOffline(models, parameters) {
                 // calculate errors
                 modelEvals[i].update(models[i].value, val);
                 modelEval.update(models[i].value, val);
+                // add to pusher
+                pPusher.add(modelEval, val, models[i].conf.prediction.name, models[i].conf.modelid, predictionTime.string);
+
+                if ((i + 1) % 6 == 0) {
+                    pPusher.push();
+                }
             }
 
             // draw graph
-            if (offset > drawOffset)
-                drawBuffer.push({ Prediction: { Val: val, Time: predictionTime.string }, Value: { Val: models[i].value, Time: predictionTime.string } });
+            if ((offset > drawOffset) && (offset < drawOffsetEnd))
+                drawBuffer.push({ Prediction: { Val: val, Time: predictionTime.string }, Value: { Val: models[i].value, Time: predictionTime.string } });           
         }
 
         // calculate new offset
         oldOffset = offset;
         offset = models[0].findNextOffset(offset);
     }
+    
 
     // make visualizations
     // Offline (no server is needed)
@@ -1104,5 +1159,4 @@ http.onGet("records", function (request, response) {
 
 
 // RUN
-runModelsOffline(modelEPEX, [0]);
-process.exitScript();
+// runModelsOffline(modelEPEX, [0]);
