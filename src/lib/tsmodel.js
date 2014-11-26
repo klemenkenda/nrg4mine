@@ -71,6 +71,8 @@ exports.TSModel = function (conf) {
     this.value;             // current true learned value;
     this.prediction;        // prediction
 
+    this.psAggr;            // RCA aggregate
+
     /* modelling function */
 
     // METHOD: predict()
@@ -788,6 +790,32 @@ exports.TSModel = function (conf) {
             qm.createStore([metaMergerStoreDef]);
         }
         this.metaMergedStore = qm.store("M" + this.conf.name + this.conf.storename);
+    }
+
+    // METHOD: addProcessStateAggr
+    // Adds process state aggr to meta store
+    this.addProcessStateAggr = function () {
+        var mmStoreName = "M" + this.conf.name + this.conf.storename;        
+
+        this.psAggr = qm.newProcessStateAggr({
+            type: 'process_state',
+            source: mmStoreName,
+            name: 'rcaClust',
+            timestamp: 'Time',
+            clustering: {
+                type: 'dpmeans',
+                lambda: 0.8,
+                minclusts: 2,
+                maxclusts: 8
+            },
+            minRecs: 5,
+            timeUnit: 'hour',
+            nstates: 8,
+            expandThreshold: .8,
+            depth: 3,
+            randSeed: 1
+        });
+
     }
     
 }
