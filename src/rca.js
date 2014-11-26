@@ -34,8 +34,8 @@ var modelConf = {
 
 
         /* sensor features */
-        { name: "spot-ger-energy-price", ts: [0], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"], type: "sensor" },
-        { name: "spot-ger-total-energy", ts: [0], aggrs: ["ma1w", "ma1m", "min1w", "max1w", "var1m"], type: "sensor" },
+        { name: "spot-ger-energy-price", ts: [0], aggrs: [], type: "sensor" },
+        { name: "spot-ger-total-energy", ts: [0], aggrs: [], type: "sensor" },
 
         /* static features */
         { name: "holidayAachen", ts: [24], aggrs: [], type: "feature" },

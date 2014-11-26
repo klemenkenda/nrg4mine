@@ -804,14 +804,14 @@ exports.TSModel = function (conf) {
             timestamp: 'Time',
             clustering: {
                 type: 'dpmeans',
-                lambda: 0.8,
-                minclusts: 2,
+                lambda: 0.7,
+                minclusts: 4,
                 maxclusts: 8
             },
             minRecs: 5,
             timeUnit: 'hour',
             nstates: 8,
-            expandThreshold: .8,
+            expandThreshold: 0.8,
             depth: 3,
             randSeed: 1
         });
